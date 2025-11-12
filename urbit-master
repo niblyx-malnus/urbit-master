@@ -1,0 +1,240 @@
+#!/bin/bash
+# urbit-master - Unified CLI for Urbit master desk management
+# Manages credentials, tests endpoints, and interacts with your Urbit ship
+
+set -euo pipefail
+
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source libraries
+source "$SCRIPT_DIR/scripts/core.sh"
+source "$SCRIPT_DIR/scripts/credentials.sh"
+source "$SCRIPT_DIR/scripts/testing.sh"
+
+# Version
+VERSION="1.0.0"
+
+# Show usage
+usage() {
+    cat << EOF
+urbit-master v${VERSION} - Urbit master desk CLI
+
+USAGE:
+    urbit-master <command> [subcommand] [args...]
+
+COMMANDS:
+    update <service>        Update service credentials
+    test <endpoint>         Test various endpoints
+    status                  Check ship status
+    help                    Show this help message
+    version                 Show version information
+
+UPDATE COMMANDS:
+    update telegram         Update Telegram bot credentials
+    update s3               Update S3/DigitalOcean Spaces credentials
+    update claude           Update Claude API credentials
+    update brave            Update Brave Search API credentials
+    update all              Update all configured credentials
+
+TEST COMMANDS:
+    test s3-upload [text] [filename]
+                            Test S3 file upload
+    test s3-upload-dir [dir] [prefix]
+                            Test S3 directory upload
+    test s3-get [filename]  Test S3 file download
+    test s3-get-dir [prefix]
+                            Test S3 directory download
+    test s3-list [prefix]   Test S3 list files
+    test s3-delete [filename]
+                            Test S3 delete file
+    test claude [prompt]    Test Claude API
+    test claude-mcp [prompt]
+                            Test Claude with MCP
+    test mcp [method]       Test MCP endpoint
+                            methods: initialize, tools/list, send_telegram
+    test web-search [query] Test web search endpoint
+
+EXAMPLES:
+    urbit-master update telegram
+    urbit-master update all
+    urbit-master test s3-upload "Hello World" "test.txt"
+    urbit-master test mcp tools/list
+    urbit-master status
+
+CONFIGURATION:
+    Config file: $SCRIPT_DIR/config.json
+    Env file:    $SCRIPT_DIR/.env (optional)
+
+    Create config.json from config.example.json and update with your values.
+    See URBIT-MASTER.md for detailed setup instructions.
+
+ENVIRONMENT:
+    DEBUG=1                 Enable debug logging
+    CONFIG_FILE=<path>      Override config file location
+    ENV_FILE=<path>         Override .env file location
+
+EOF
+}
+
+# Show version
+show_version() {
+    echo "urbit-master v${VERSION}"
+}
+
+# Check ship status
+check_status() {
+    log_info "Checking ship status..."
+
+    local ship_url
+    ship_url=$(get_config '.ship_url')
+
+    log_info "Ship URL: $ship_url"
+
+    if check_ship_running; then
+        log_success "Ship is running and accessible"
+
+        # Try to authenticate
+        if urbit_auth; then
+            log_success "Authentication successful"
+            log_info "All systems operational"
+            return 0
+        else
+            log_warn "Ship is running but authentication failed"
+            log_info "Check your access_code in config.json"
+            return 1
+        fi
+    else
+        log_error "Ship is not accessible"
+        log_info "Make sure your ship is running at $ship_url"
+        return 1
+    fi
+}
+
+# Main command router
+main() {
+    if [[ $# -eq 0 ]]; then
+        usage
+        exit 0
+    fi
+
+    local command="$1"
+    shift
+
+    case "$command" in
+        # Update commands
+        update)
+            if [[ $# -eq 0 ]]; then
+                log_error "Missing service name"
+                echo ""
+                log_info "Usage: urbit-master update <service>"
+                log_info "Services: telegram, s3, claude, brave, all"
+                exit 1
+            fi
+
+            local service="$1"
+            shift
+
+            case "$service" in
+                telegram)
+                    update_telegram "$@"
+                    ;;
+                s3)
+                    update_s3 "$@"
+                    ;;
+                claude)
+                    update_claude "$@"
+                    ;;
+                brave)
+                    update_brave "$@"
+                    ;;
+                all)
+                    update_all
+                    ;;
+                *)
+                    log_error "Unknown service: $service"
+                    log_info "Available services: telegram, s3, claude, brave, all"
+                    exit 1
+                    ;;
+            esac
+            ;;
+
+        # Test commands
+        test)
+            if [[ $# -eq 0 ]]; then
+                log_error "Missing test endpoint"
+                echo ""
+                log_info "Usage: urbit-master test <endpoint> [args...]"
+                log_info "Run 'urbit-master help' for available test endpoints"
+                exit 1
+            fi
+
+            local endpoint="$1"
+            shift
+
+            case "$endpoint" in
+                s3-upload)
+                    test_s3_upload "$@"
+                    ;;
+                s3-upload-dir)
+                    test_s3_upload_directory "$@"
+                    ;;
+                s3-get)
+                    test_s3_get "$@"
+                    ;;
+                s3-get-dir)
+                    test_s3_get_directory "$@"
+                    ;;
+                s3-list)
+                    test_s3_list "$@"
+                    ;;
+                s3-delete)
+                    test_s3_delete "$@"
+                    ;;
+                claude)
+                    test_claude "$@"
+                    ;;
+                claude-mcp)
+                    test_claude_mcp "$@"
+                    ;;
+                mcp)
+                    test_mcp "$@"
+                    ;;
+                web-search)
+                    test_web_search "$@"
+                    ;;
+                *)
+                    log_error "Unknown test endpoint: $endpoint"
+                    log_info "Run 'urbit-master help' for available test endpoints"
+                    exit 1
+                    ;;
+            esac
+            ;;
+
+        # Status command
+        status)
+            check_status
+            ;;
+
+        # Help command
+        help|--help|-h)
+            usage
+            ;;
+
+        # Version command
+        version|--version|-v)
+            show_version
+            ;;
+
+        # Unknown command
+        *)
+            log_error "Unknown command: $command"
+            echo ""
+            usage
+            exit 1
+            ;;
+    esac
+}
+
+# Run main
+main "$@"
