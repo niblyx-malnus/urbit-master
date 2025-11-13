@@ -138,6 +138,29 @@
           ~['query']
           tool-web-search
       ==
+      :*  'commit'
+          'Commit a mounted desk and return version info with logs'
+          %-  ~(gas by *(map @t parameter-def))
+          :~  :-  'mount_point'
+              ^-  parameter-def
+              [%string 'Mount point name (e.g. "base")']
+              :-  'timeout_seconds'
+              ^-  parameter-def
+              [%number 'Timeout in seconds to wait for logs (default: 30)']
+          ==
+          ~['mount_point']
+          tool-commit
+      ==
+      :*  'desk_version'
+          'Get the current version of a mounted desk'
+          %-  ~(gas by *(map @t parameter-def))
+          :~  :-  'mount_point'
+              ^-  parameter-def
+              [%string 'Mount point name (e.g. "base")']
+          ==
+          ~['mount_point']
+          tool-desk-version
+      ==
   ==
 ::
 ::  Tool execution interface
@@ -474,4 +497,159 @@
       "\0a\0a"
     ==
   (pure:m [%text (crip formatted)])
+::
+++  parse-commit-args
+  |=  arguments=(map @t json)
+  ^-  [mount-point=@tas timeout=@dr]
+  =/  mount-point=@tas
+    %.  [%o arguments]
+    %-  ot:dejs:format
+    :~  ['mount_point' so:dejs:format]
+    ==
+  =/  timeout-seconds=@ud
+    ?~  timeout-json=(~(get by arguments) 'timeout_seconds')
+      30
+    ?.  ?=([%n *] u.timeout-json)
+      30
+    (rash p.u.timeout-json dem)
+  [mount-point (mul timeout-seconds ~s1)]
+::
+++  subscribe-dill-logs
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  (send-raw-card:io %pass /dill-logs %arvo %d %logs `~)
+::
+++  unsubscribe-dill-logs
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  (send-raw-card:io %pass /dill-logs %arvo %d %logs ~)
+::
+++  set-timeout
+  |=  [=bowl:gall duration=@dr]
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  (send-raw-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl duration))
+::
+++  get-commit-state
+  |=  pid=@ta
+  =/  m  (fiber:io ,commit-state)
+  ^-  form:m
+  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  (pure:m (~(got by commits.processes.state) pid))
+::
+++  init-commit-state
+  |=  [mount-point=@tas pid=@ta]
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ?:  (~(has by commits.processes.state) pid)
+    (pure:m ~)
+  ;<  ver=cass:clay  bind:m  (scry:io cass:clay %cw mount-point ~)
+  =.  commits.processes.state  (~(put by commits.processes.state) pid [sent=%.n initial-version=`ver logs=~])
+  (replace:io !>(state))
+::
+++  commit-desk
+  |=  mount-point=@tas
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ;<  pid=@ta  bind:m  get-pid:io
+  ;<  cs=commit-state  bind:m  (get-commit-state pid)
+  ?:  sent.cs
+    (pure:m ~)
+  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  =.  commits.processes.state  (~(put by commits.processes.state) pid cs(sent %.y))
+  ;<  ~  bind:m  (replace:io !>(state))
+  ;<  our=@p  bind:m  get-our:io
+  (poke:io [our %hood] kiln-commit+!>([mount-point %.n]))
+::
+++  collect-logs-until-timeout
+  |=  pid=@ta
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ::  Use raw fiber form (|= input) to pattern match on incoming events
+  ::  and directly emit timer cards for debouncing
+  |=  input:fiber:sailbox
+  =+  !<(=state-0 state)
+  =/  cs=commit-state  (~(got by commits.processes.state-0) pid)
+  ?+  in  [~ state %skip |]
+      ~  [~ state %wait |]
+      ::  Main timeout expired - we're done
+      [~ %arvo [%commit-timeout ~] %behn %wake *]
+    [~ state %done ~]
+      ::  Quiet timer fired - check if it's still current
+      ::  Debouncing: each log spawns a 1s timer tagged with log count
+      ::  If timer's count matches current count, no new logs arrived (quiet)
+      ::  Otherwise it's stale - another log arrived and spawned a newer timer
+      [~ %arvo [%commit-quiet @ ~] %behn %wake *]
+    =/  timer-counter=@ud  (slav %ud i.t.wire.u.in)
+    ?.  =(timer-counter (lent logs.cs))
+      ::  Stale timer (more logs arrived), ignore it
+      [~ state %skip |]
+    ::  Current timer (no new logs for 1s), we're done
+    [~ state %done ~]
+      ::  Got a dill log - store it and spawn new quiet timer
+      [~ %arvo [%dill-logs ~] %dill %logs *]
+    =/  new-logs=(list told:dill)  [told.sign.u.in logs.cs]
+    =.  commits.processes.state-0  (~(put by commits.processes.state-0) pid cs(logs new-logs))
+    ::  Spawn quiet timer tagged with new log count
+    =/  card  [%pass /commit-quiet/(scot %ud (lent new-logs)) %arvo %b %wait (add now.bowl ~s1)]
+    [~[card] !>(state-0) %cont (collect-logs-until-timeout pid)]
+  ==
+::
+++  format-told
+  |=  log=told:dill
+  ^-  tape
+  ?-  -.log
+      %crud
+    =/  err-lines=wall  (zing (turn (flop q.log) (cury wash [0 80])))
+    ;:  weld
+      "ERROR [{<p.log>}]:\0a"
+      (roll err-lines |=([line=tape acc=tape] :(weld acc line "\0a")))
+    ==
+      %talk
+    =/  talk-lines=wall  (zing (turn p.log (cury wash [0 80])))
+    (roll talk-lines |=([line=tape acc=tape] :(weld acc line "\0a")))
+      %text
+    "{p.log}\0a"
+  ==
+::
+++  format-commit-result
+  |=  [initial=cass:clay final=cass:clay logs=(list told:dill)]
+  ^-  tape
+  %+  weld  "Initial version: {<ud.initial>}\0a"
+  %+  weld  "Final version: {<ud.final>}\0a"
+  %+  weld  "Logs ({<(lent logs)>}):\0a"
+  (roll logs |=([log=told:dill acc=tape] (weld acc (format-told log))))
+::
+++  tool-commit
+  ^-  tool-handler
+  |=  arguments=(map @t json)
+  =/  m  (fiber:io ,tool-result)
+  ^-  form:m
+  ;<  pid=@ta  bind:m  get-pid:io
+  =/  [mount-point=@tas timeout=@dr]  (parse-commit-args arguments)
+  ;<  ~  bind:m  (init-commit-state mount-point pid)
+  ;<  =bowl:gall  bind:m  get-bowl:io
+  ;<  ~  bind:m  subscribe-dill-logs
+  ;<  ~  bind:m  (set-timeout bowl timeout)
+  ;<  ~  bind:m  (commit-desk mount-point)
+  ;<  ~  bind:m  (collect-logs-until-timeout pid)
+  ;<  ~  bind:m  unsubscribe-dill-logs
+  ;<  cs=commit-state  bind:m  (get-commit-state pid)
+  ;<  final-version=cass:clay  bind:m  (scry:io cass:clay %cw mount-point ~)
+  =/  initial-version=cass:clay  (need initial-version.cs)
+  (pure:m %text (crip (format-commit-result initial-version final-version (flop logs.cs))))
+::
+++  tool-desk-version
+  ^-  tool-handler
+  |=  arguments=(map @t json)
+  =/  m  (fiber:io ,tool-result)
+  ^-  form:m
+  =/  mount-point=@tas
+    %.  [%o arguments]
+    %-  ot:dejs:format
+    :~  ['mount_point' so:dejs:format]
+    ==
+  ;<  version=cass:clay  bind:m  (scry:io cass:clay %cw mount-point ~)
+  (pure:m [%text (crip "Desk version: {<ud.version>}")])
 --

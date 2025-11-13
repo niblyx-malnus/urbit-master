@@ -79,6 +79,16 @@
       wake-time=@da
   ==
 ::
++$  commit-state
+  $:  sent=?
+      initial-version=(unit cass:clay)
+      logs=(list told:dill)
+  ==
+::
++$  processes
+  $:  commits=(map @ta commit-state)
+  ==
+::
 +$  state-0
   $:  %0
       counter=@ud
@@ -92,5 +102,6 @@
       claude-chats=(map @ux claude-chat)
       user-timezone=@t
       telegram-alarms=(map @da telegram-alarm)
+      =processes
   ==
 --

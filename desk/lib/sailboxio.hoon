@@ -115,6 +115,12 @@
   |=  input
   [~ state %done sap.poke]
 ::
+++  get-poke-fresh
+  =/  m  (fiber ,?)
+  ^-  form:m
+  |=  input
+  [~ state %done fresh.poke]
+::
 ++  soften
   |*  a=mold
   =/  m  (fiber ,a)

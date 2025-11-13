@@ -433,7 +433,12 @@
         proc=(map @ta proc)
     ==
   ::
-  +$  poke  [=cage src=ship sap=path]
+  +$  poke
+     $:  =cage    :: actual poke contents
+         src=ship :: source ship of poke
+         sap=path :: provenance of poke
+         fresh=?  :: original poke vs. +on-load reboot from scratch
+     ==
   ::
   +$  proc
     $:  =process
@@ -691,7 +696,7 @@
     :: ?<  ?=([%eyre *] sap.bowl) :: Eyre Security (never happens)
     %-  (slog leaf+"error in {<dap.bowl>}" >term< tang)
     =^  cards  full-state
-      abet:(handle-fiber-poke:hc %on-fail on-fail+!>([term tang]))
+      abet:(kill-and-poke:hc %on-fail on-fail+!>([term tang]) %.y)
     [cards this]
   ::
   ++  on-init
@@ -699,7 +704,7 @@
     :: ?<  ?=([%eyre *] sap.bowl) :: Eyre Security (never happens)
     =.  state  initial:app
     =^  cards  full-state
-      abet:(handle-fiber-poke:hc %on-init on-init+!>(~))
+      abet:(kill-and-poke:hc %on-init on-init+!>(~) %.y)
     =/  until=@da  (add now.bowl keep-alive)
     :_  this(timers (~(put by timers) /timer/sse until))
     %+  welp
@@ -730,8 +735,9 @@
         [cards this]
         ::
           %fiber-poke
+        =+  !<([pid=@ta =cage] vase)
         =^  cards  full-state
-          abet:(handle-fiber-poke:hc !<([@ta cage] vase))
+          abet:(handle-fiber-poke:hc pid cage %.y)
         [cards this]
         ::
           %fiber-kill
@@ -789,7 +795,7 @@
     ?.  (is-sse-request req)
       =.  requests  (~(put in requests) eyre-id)
       =^  cards  full-state
-        =+  res=(mule |.(abet:(handle-fiber-poke:hc eyre-id handle-http-request+!>(req))))
+        =+  res=(mule |.(abet:(handle-fiber-poke:hc eyre-id handle-http-request+!>(req) %.y)))
         ?:  ?=(%& -.res)  p.res
         ((slog p.res) (mean p.res)) :: goes to dojo and browser
       [cards this]
@@ -972,10 +978,10 @@
     bowl
   ::
   ++  handle-fiber-poke
-    |=  [pid=@ta =cage]
+    |=  [pid=@ta =cage fresh=?]
     ^+  this
     ?<  (~(has by proc.pipe) pid)
-    =/  =proc:fiber  [process:app [cage [src sap]:bowl] ~ ~]
+    =/  =proc:fiber  [process:app [cage src.bowl sap.bowl fresh] ~ ~]
     =.  proc.pipe  (~(put by proc.pipe) pid proc)
     (process-take pid ~)
   ::
@@ -985,14 +991,41 @@
     =.  proc.pipe  (~(del by proc.pipe) pid)
     (fiber-ack pid ~ leaf+"killed" ~)
   ::
+  ++  kill-and-poke
+    |=  [pid=@ta =cage fresh=?]
+    ^+  this
+    =?  this  (~(has by proc.pipe) pid)
+      (handle-fiber-kill pid)
+    (handle-fiber-poke pid cage fresh)
+  ::
   ++  fiber-kill-all
     ^+  this
-    =/  fids=(list @ta)  ~(tap in ~(key by proc.pipe))
+    =/  pids=(list @ta)  ~(tap in ~(key by proc.pipe))
     |-
-    ?~  fids
+    ?~  pids
       this
-    =.  this  (handle-fiber-kill i.fids)
-    $(fids t.fids)
+    =.  this  (handle-fiber-kill i.pids)
+    $(pids t.pids)
+  ::
+  ++  reboot-process
+    |=  pid=@ta
+    ^+  this
+    ?~  proc=(~(get by proc.pipe) pid)
+      this
+    =.  proc.pipe
+      %+  ~(put by proc.pipe)
+        pid
+      [process:app poke.u.proc(fresh %.n) ~ ~]
+    (process-take pid ~)
+  ::
+  ++  reboot-all-processes
+    ^+  this
+    =/  pids=(list @ta)  ~(tap in ~(key by proc.pipe))
+    |-
+    ?~  pids
+      this
+    =.  this  (reboot-process i.pids)
+    $(pids t.pids)
   ::
   ++  refresh-timers
     ^+  this
@@ -1006,9 +1039,9 @@
   ::
   ++  handle-on-load
     ^+  this
-    =.  this  fiber-kill-all
+    =.  this  reboot-all-processes
     =.  this  refresh-timers
-    (handle-fiber-poke %on-load on-load+!>(~))
+    (kill-and-poke %on-load on-load+!>(~) %.y)
   ::
   ++  wrap-wire
     |=  [pid=@ta =wire]
@@ -1079,12 +1112,12 @@
   ++  relinquish
     ^+  this
     =.  boar.pipe  ~
-    =/  fids=(list @ta)  ~(tap in ~(key by proc.pipe))
+    =/  pids=(list @ta)  ~(tap in ~(key by proc.pipe))
     |-
-    ?~  fids
+    ?~  pids
       this
-    =.  this  (process-do-next i.fids)
-    $(fids t.fids)
+    =.  this  (process-do-next i.pids)
+    $(pids t.pids)
   ::
   ++  process-take
     |=  [pid=@ta take=(unit intake:fiber)]

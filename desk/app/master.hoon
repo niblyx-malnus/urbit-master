@@ -27,6 +27,7 @@
   =.  brave-search-creds.state  initial-creds:brave-routes
   =.  user-timezone.state  'UTC'
   =.  telegram-alarms.state  ~
+  =.  processes.state  [commits=~]
   !>(state)
 ::
 ++  migrate
