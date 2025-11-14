@@ -145,9 +145,8 @@
   =/  m  (fiber:io ,(unit json))
   ^-  form:m
   ::  Parse JSON-RPC request using json-utils
-  =/  req-parser  ~(. jo:json-utils jon)
-  =/  method=(unit json)  (get:req-parser /method)
-  =/  id=(unit json)      (get:req-parser /id)
+  =/  method=(unit json)  (~(get jo:json-utils jon) /method)
+  =/  id=(unit json)      (~(get jo:json-utils jon) /id)
   ::  Route by JSON-RPC method
   ?+    method
     ::  Unknown method
@@ -167,20 +166,20 @@
     ::
       [~ [%s %'tools/call']]
     ::  Execute tool call - extract nested params with jo
-    =/  tool-name=(unit json)  (get:req-parser /params/name)
+    =/  tool-name=(unit json)  (~(get jo:json-utils jon) /params/name)
     ?~  tool-name
       (pure:m `(rpc-error rpc-invalid-params 'Missing tool name' id))
     ?.  ?=([%s *] u.tool-name)
       (pure:m `(rpc-error rpc-invalid-params 'Invalid tool name' id))
     ::  Extract arguments as map
-    =/  arguments=(unit json)  (get:req-parser /params/arguments)
+    =/  arguments=(unit json)  (~(get jo:json-utils jon) /params/arguments)
     ?~  arguments
       (pure:m `(rpc-error rpc-invalid-params 'Missing arguments' id))
     ?.  ?=([%o *] u.arguments)
       (pure:m `(rpc-error rpc-invalid-params 'Invalid arguments' id))
     ::  Extract optional chat-id from _meta and inject into arguments if present
     =/  arguments-with-meta=(map @t json)
-      =/  meta=(unit json)  (get:req-parser /params/'_meta'/'chat_id')
+      =/  meta=(unit json)  (~(get jo:json-utils jon) /params/'_meta'/'chat_id')
       ?~  meta  p.u.arguments
       (~(put by p.u.arguments) '_chat_id' u.meta)
     ::  Delegate execution to lib/tools

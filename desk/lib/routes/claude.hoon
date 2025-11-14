@@ -192,9 +192,8 @@
   =/  [api-key=@t ai-model=@t]
     ?~  creds-jon
       ['' 'claude-sonnet-4-20250514']
-    =/  j  ~(. jo:json-utils u.creds-jon)
-    :*  (dog:j /api-key so:dejs:format)
-        (dog:j /ai-model so:dejs:format)
+    :*  (~(dog jo:json-utils u.creds-jon) /api-key so:dejs:format)
+        (~(dog jo:json-utils u.creds-jon) /ai-model so:dejs:format)
     ==
   (give-simple-payload:io (mime-response:sailbox [/text/html (manx-to-octs:server (chat-page:ui-claude u.chat claude-chats.state user-timezone api-key ai-model))]))
 ::

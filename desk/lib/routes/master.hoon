@@ -323,12 +323,10 @@
     =/  chat-id=@ux  (rash i.t.t.site hex)
     =/  message=@t  (need (get-key:kv 'message' args))
     ;<  state=state-0  bind:m  (get-state-as:io state-0)
-    =/  creds-jon=(unit json)  (get-claude-creds ball.state)
-    ?~  creds-jon
-      (fiber-fail:io leaf+"Claude credentials not configured" ~)
-    =/  j  ~(. jo:json-utils u.creds-jon)
-    =/  api-key=@t  (dog:j /api-key so:dejs:format)
-    =/  ai-model=@t  (dog:j /ai-model so:dejs:format)
+    =/  jon=json
+      (~(got-cage-as ba:tarball ball.state) /config/creds 'claude.json' json)
+    =/  api-key=@t  (~(dog jo:json-utils jon) /api-key so:dejs:format)
+    =/  ai-model=@t  (~(dog jo:json-utils jon) /ai-model so:dejs:format)
     %:  handle-message:claude-routes
       chat-id
       message

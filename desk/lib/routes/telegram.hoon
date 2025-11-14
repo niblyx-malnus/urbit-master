@@ -8,13 +8,10 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  jon=(unit json)
-    (~(get-cage-as ba:tarball ball.state) /config/creds 'telegram.json' json)
-  ?~  jon
-    (fiber-fail:io leaf+"Telegram credentials not configured" ~)
-  =/  j  ~(. jo:json-utils u.jon)
-  =/  bot-token=@t  (dog:j /bot-token so:dejs:format)
-  =/  chat-id=@t  (dog:j /chat-id so:dejs:format)
+  =/  jon=json
+    (~(got-cage-as ba:tarball ball.state) /config/creds 'telegram.json' json)
+  =/  bot-token=@t  (~(dog jo:json-utils jon) /bot-token so:dejs:format)
+  =/  chat-id=@t  (~(dog jo:json-utils jon) /chat-id so:dejs:format)
   ;<  ~  bind:m
     %:  send-message:telegram
       bot-token
@@ -56,13 +53,10 @@
   ~&  >  "wake time reached, sending telegram..."
   ::  Get current state to access telegram creds
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  jon=(unit json)
-    (~(get-cage-as ba:tarball ball.state) /config/creds 'telegram.json' json)
-  ?~  jon
-    (fiber-fail:io leaf+"Telegram credentials not configured" ~)
-  =/  j  ~(. jo:json-utils u.jon)
-  =/  bot-token=@t  (dog:j /bot-token so:dejs:format)
-  =/  chat-id=@t  (dog:j /chat-id so:dejs:format)
+  =/  jon=json
+    (~(got-cage-as ba:tarball ball.state) /config/creds 'telegram.json' json)
+  =/  bot-token=@t  (~(dog jo:json-utils jon) /bot-token so:dejs:format)
+  =/  chat-id=@t  (~(dog jo:json-utils jon) /chat-id so:dejs:format)
   ::  Send telegram
   ;<  ~  bind:m
     %:  send-message:telegram

@@ -330,9 +330,8 @@
     (~(get-cage-as ba:tarball ball.state) /config/creds 'telegram.json' json)
   ?~  jon
     (pure:m [%error 'Telegram credentials not configured'])
-  =/  j  ~(. jo:json-utils u.jon)
-  =/  bot-token=@t  (dog:j /bot-token so:dejs:format)
-  =/  chat-id=@t  (dog:j /chat-id so:dejs:format)
+  =/  bot-token=@t  (~(dog jo:json-utils u.jon) /bot-token so:dejs:format)
+  =/  chat-id=@t  (~(dog jo:json-utils u.jon) /chat-id so:dejs:format)
   ;<  ~  bind:m
     (send-message:telegram bot-token chat-id message)
   (pure:m [%text 'Telegram message sent'])
@@ -459,8 +458,7 @@
     (~(get-cage-as ba:tarball ball.state) /config/creds 'brave-search.json' json)
   ?~  jon
     (pure:m [%error 'Brave Search credentials not configured'])
-  =/  j  ~(. jo:json-utils u.jon)
-  =/  api-key=@t  (dog:j /api-key so:dejs:format)
+  =/  api-key=@t  (~(dog jo:json-utils u.jon) /api-key so:dejs:format)
   ::  Build request URL
   =/  url=tape
     %+  weld  "https://api.search.brave.com/res/v1/web/search?q="
