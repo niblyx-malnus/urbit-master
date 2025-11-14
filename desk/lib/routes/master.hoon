@@ -1,5 +1,5 @@
 /-  *master
-/+  io=sailboxio, sailbox, server, ui-master, html-utils
+/+  io=sailboxio, sailbox, server, ui-master, html-utils, tarball
 /=  claude-routes  /lib/routes/claude
 /=  s3-routes  /lib/routes/s3
 /=  telegram-routes  /lib/routes/telegram
@@ -7,6 +7,12 @@
 /=  mcp-routes  /lib/routes/mcp
 =,  html-utils
 |%
+::  Helper to get claude creds from ball
+::
+++  get-claude-creds
+  |=  =ball:tarball
+  ^-  claude-creds
+  (~(get-cage-as ba:tarball ball) / 'claude-creds.json' claude-creds)
 ::  GET request router
 ::
 ++  handle-get-request
@@ -16,6 +22,7 @@
       ==
   =/  m  (fiber:io ,~)
   ^-  form:m
+  =/  user-timezone=@t  (~(get-cage-as ba:tarball ball.state) / 'user-timezone.txt' @t)
   =/  lin=request-line:server  (parse-request-line:server url.request.req)
   =/  site=(list @t)  site.lin
   =/  args=(list [key=@t value=@t])  args.lin
@@ -42,11 +49,12 @@
   ::
       [%master %claude @ ~]
     =/  chat-id=@ux  (rash i.t.t.site hex)
-    (handle-get-chat:claude-routes chat-id user-timezone.state claude-creds.state)
+    =/  creds=claude-creds  (get-claude-creds ball.state)
+    (handle-get-chat:claude-routes chat-id user-timezone creds)
   ::
       [%master %claude @ %messages ~]
     =/  chat-id=@ux  (rash i.t.t.site hex)
-    (handle-get-messages:claude-routes chat-id args user-timezone.state)
+    (handle-get-messages:claude-routes chat-id args user-timezone)
   ==
 ::
 ::  JSON POST request router
@@ -72,6 +80,7 @@
       ==
   =/  m  (fiber:io ,~)
   ^-  form:m
+  =/  user-timezone=@t  (~(get-cage-as ba:tarball ball.state) / 'user-timezone.txt' @t)
   =/  args=key-value-list:kv  (parse-body:kv body.request.req)
   ?+    site  !!
       [%master %test-sse ~]
@@ -91,35 +100,35 @@
   ::
       [%master %telegram ~]
     =/  message=@t  (need (get-key:kv 'message' args))
-    (handle-send-message:telegram-routes message telegram-creds.state)
+    (handle-send-message:telegram-routes message)
   ::
       [%master %set-timezone ~]
     =/  timezone=@t  (need (get-key:kv 'timezone' args))
     ;<  state=state-0  bind:m  (get-state-as:io state-0)
-    =.  user-timezone.state  timezone
+    =.  ball.state  (~(put ba:tarball ball.state) / 'user-timezone.txt' [%cage ~ [%txt !>(timezone)]])
     ;<  ~  bind:m  (replace:io !>(state))
     (give-simple-payload:io [[200 ~] ~])
   ::
       [%master %s3-upload ~]
     =/  text=@t  (fall (get-key:kv 'text' args) 'Hello world!')
     =/  filename=@t  (fall (get-key:kv 'filename' args) 'test.txt')
-    (handle-upload:s3-routes text filename s3-creds.state)
+    (handle-upload:s3-routes text filename)
   ::
       [%master %s3-get ~]
     =/  filename=@t  (fall (get-key:kv 'filename' args) 'test.txt')
-    (handle-get:s3-routes filename s3-creds.state)
+    (handle-get:s3-routes filename)
   ::
       [%master %s3-delete ~]
     =/  filename=@t  (fall (get-key:kv 'filename' args) 'test.txt')
-    (handle-delete:s3-routes filename s3-creds.state)
+    (handle-delete:s3-routes filename)
   ::
       [%master %s3-list ~]
     =/  prefix=@t  (fall (get-key:kv 'prefix' args) '')
-    (handle-list:s3-routes prefix s3-creds.state)
+    (handle-list:s3-routes prefix)
   ::
       [%master %s3-get-directory ~]
     =/  prefix=@t  (fall (get-key:kv 'prefix' args) '')
-    (handle-get-directory:s3-routes prefix s3-creds.state)
+    (handle-get-directory:s3-routes prefix)
   ::
       [%master %update-creds ~]
     =/  bot-token=@t  (need (get-key:kv 'bot-token' args))
@@ -152,12 +161,14 @@
       [%master %claude @ ~]
     =/  chat-id=@ux  (rash i.t.t.site hex)
     =/  message=@t  (need (get-key:kv 'message' args))
+    ;<  state=state-0  bind:m  (get-state-as:io state-0)
+    =/  creds=claude-creds  (get-claude-creds ball.state)
     %:  handle-message:claude-routes
       chat-id
       message
-      api-key.claude-creds.state
-      ai-model.claude-creds.state
-      user-timezone.state
+      api-key.creds
+      ai-model.creds
+      user-timezone
     ==
   ::
       [%master %claude @ %branch ~]

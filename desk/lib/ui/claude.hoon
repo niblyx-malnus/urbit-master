@@ -21,6 +21,7 @@
       ==
   ^-  wain
   =/  state-data=state-0  !<(state-0 state)
+  =/  user-timezone=@t  (~(get-cage-as ba:tarball ball.state-data) / 'user-timezone.txt' @t)
   ~&  >  "handle-claude-sse called for chat {(hexn:sailbox chat-id)} with event {<event>}"
   =/  chat=(unit claude-chat)  (~(get by claude-chats.state-data) chat-id)
   ?~  chat
@@ -66,7 +67,7 @@
     =/  rendered-blocks=(list manx)
       %+  turn  blocks
       |=  [block-type=@t text=@t]
-      (render-message-block is-user is-error block-type text timestamp user-timezone.state-data)
+      (render-message-block is-user is-error block-type text timestamp user-timezone)
     ::  Wrap blocks with hx-swap-oob
     =/  wrapper=manx
       ;div(hx-swap-oob "beforeend:#messages")

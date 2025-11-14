@@ -1,7 +1,7 @@
 /-  *master
 /+  dbug, sailbox, io=sailboxio, server,
     ui-master, ui-claude, telegram,
-    sse=sse-helpers
+    sse=sse-helpers, migrate-master
 /=  master-routes  /lib/routes/master
 /=  telegram-routes  /lib/routes/telegram
 /=  s3-routes  /lib/routes/s3
@@ -21,19 +21,23 @@
   ^-  vase
   =|  state=state-0
   =.  bindings.state  (sy ~[[~ /master]])
-  =.  telegram-creds.state  initial-creds:telegram-routes
-  =.  s3-creds.state  initial-creds:s3-routes
-  =.  claude-creds.state  initial-creds:claude-routes
-  =.  brave-search-creds.state  initial-creds:brave-routes
-  =.  user-timezone.state  'UTC'
   =.  telegram-alarms.state  ~
   =.  processes.state  [commits=~]
+  ::  Initialize ball
+  =.  ball.state
+    =/  b=ball:tarball  (set-ball-version:migrate-master ball.state 0)
+    =.  b  (~(put ba:tarball b) / 'user-timezone.txt' [%cage ~ [%txt !>('UTC')]])
+    =.  b  (~(put ba:tarball b) / 'telegram-creds.json' [%cage ~ [%json !>(initial-creds:telegram-routes)]])
+    =.  b  (~(put ba:tarball b) / 's3-creds.json' [%cage ~ [%json !>(initial-creds:s3-routes)]])
+    =.  b  (~(put ba:tarball b) / 'claude-creds.json' [%cage ~ [%json !>(initial-creds:claude-routes)]])
+    (~(put ba:tarball b) / 'brave-search-creds.json' [%cage ~ [%json !>(initial-creds:brave-routes)]])
   !>(state)
 ::
 ++  migrate
   |=  old=vase
   ^-  vase
   =+  !<(=state-0 old)
+  =.  ball.state-0  (migrate-ball:migrate-master ball.state-0)
   !>(state-0)
 ::
 ++  on-peek
@@ -66,6 +70,9 @@
     ::
       %on-load :: sent by sailbox
     ;<  state=state-0  bind:m  (get-state-as:io state-0)
+    ::  Always migrate ball on load
+    =.  ball.state  (migrate-ball:migrate-master ball.state)
+    ;<  ~  bind:m  (replace:io !>(state))
     ;<  ~  bind:m  (set-bindings:io ~(tap in bindings.state))
     ::  Restart all pending telegram alarms
     (restart-alarms:telegram telegram-alarms.state)

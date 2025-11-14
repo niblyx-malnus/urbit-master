@@ -8,6 +8,7 @@
 +$  content
   $%  [%file =metadata =mime]
       [%symlink =metadata =road]
+      [%cage =metadata =cage]
   ==
 +$  lump  [=metadata contents=(map @ta content)]
 +$  ball  (axal lump)
@@ -57,6 +58,43 @@
     %css   `/text/css
     %js    `/text/javascript
   ==
+::  Parse file extension (alphanumeric + hyphens, case-insensitive)
+::  Parses from reversed input like ++deft:de-purl:html in zuse
+::  Must start with a letter (not digit), and be non-empty
+::
+++  pext  ::  extension parser
+  %+  sear
+    |=  a=@
+    =/  text=tape  (cass (flop (trip a)))
+    ?:  =(text ~)  ~  ::  empty extension
+    ?.  ?&  (gte (snag 0 text) 'a')
+            (lte (snag 0 text) 'z')
+        ==
+      ~  ::  must start with letter
+    ((sand %ta) (crip text))
+  (cook |=(a=tape (rap 3 ^-((list @) a))) (star ;~(pose aln hep)))
+::  Extract file extension from filename
+::  Examples: 'data.json' -> `%json, 'page.html-css' -> `%html-css, 'noext' -> ~
+::
+++  parse-extension
+  |=  filename=@ta
+  ^-  (unit @ta)
+  =/  reversed=tape  (flop (trip filename))
+  =/  result  (;~(sfix pext dot) [1^1 reversed])
+  ?~  q.result  ~
+  `p.u.q.result
+::  Convert mime back to cage using mark system
+::  Returns ~ if no extension or no conversion available
+::
+++  mime-to-cage
+  |=  [conversions=(map mars:clay tube:clay) filename=@ta =mime]
+  ^-  (unit cage)
+  =/  ext=(unit @ta)  (parse-extension filename)
+  ?~  ext
+    ~
+  ?~  tube=(~(get by conversions) %mime u.ext)
+    ~
+  `[u.ext (u.tube !>(mime))]
 ::  Parse Unix-style path string into road
 ::
 ++  parse-road
@@ -156,7 +194,12 @@
 ::  Process multipart file uploads into ball
 ::
 ++  from-parts
-  |=  [base=ball base-path=path parts=(list [@t part:multipart]) now=@da]
+  |=  $:  base=ball
+          base-path=path
+          parts=(list [@t part:multipart])
+          now=@da
+          conversions=(map mars:clay tube:clay)
+      ==
   ^-  ball
   ?~  parts  base
   =/  [field-name=@t file-part=part:multipart]  i.parts
@@ -220,8 +263,13 @@
     :~  ['mtime' (da-oct now)]
         ['size' (scot %ud file-size)]
     ==
+  ::  Try to convert to cage, otherwise store as file
+  =/  file-mime=mime  [mime-type [file-size body.file-part]]
+  =/  maybe-cage=(unit cage)  (mime-to-cage conversions file-name file-mime)
   =/  file-content=content
-    [%file file-metadata mime-type [file-size body.file-part]]
+    ?~  maybe-cage
+      [%file file-metadata file-mime]
+    [%cage file-metadata u.maybe-cage]
   ::  Add file to base with explicit directories
   =/  new-base=ball
     (~(put ba base-with-dirs) full-parent file-name file-content)
@@ -284,6 +332,39 @@
   ++  gut
     |=  [pax=path name=@ta default=content]
     (fall (get pax name) default)
+  ::  Get a cage (crash if not found or not a cage)
+  ::
+  ++  get-cage
+    |=  [pax=path name=@ta]
+    ^-  cage
+    =/  c=content  (got pax name)
+    ?:  ?=([%cage *] c)
+      cage.c
+    ~|("not a cage: {(spud (snoc pax name))}" !!)
+  ::  Get a file (crash if not found or not a file)
+  ::
+  ++  get-file
+    |=  [pax=path name=@ta]
+    ^-  mime
+    =/  c=content  (got pax name)
+    ?:  ?=([%file *] c)
+      mime.c
+    ~|("not a file: {(spud (snoc pax name))}" !!)
+  ::  Get a symlink (crash if not found or not a symlink)
+  ::
+  ++  get-symlink
+    |=  [pax=path name=@ta]
+    ^-  road
+    =/  c=content  (got pax name)
+    ?:  ?=([%symlink *] c)
+      road.c
+    ~|("not a symlink: {(spud (snoc pax name))}" !!)
+  ::  Get cage and extract as specific type (crash if wrong type)
+  ::
+  ++  get-cage-as
+    |*  [pax=path name=@ta a=mold]
+    ^-  a
+    !<(a q:(get-cage pax name))
   ::  Count total content items across all directories
   ::
   ++  wyt
@@ -506,10 +587,22 @@
   $(p t.p, n [i.p n])
 ::
 ++  gen
-  |_  =bowl:gall
+  |_  [=bowl:gall conversions=(map mars:clay tube:clay)]
   ::  TODO: implement PAX extended headers (typeflag 'x' and 'g')
   ::  to preserve arbitrary metadata fields like date-created
   ::  Format: <length> <key>=<value>\n
+  ::
+  ::  Convert cage to mime using mark conversions map
+  ::  Falls back to noun jamming if no conversion exists
+  ::
+  ++  cage-to-mime
+    |=  =cage
+    ^-  mime
+    =/  key=mars:clay  [a=p.cage b=%mime]
+    ?~  tube=(~(get by conversions) key)
+      ::  No conversion available, fall back to jamming like mar/noun.hoon
+      [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))]
+    !<(mime (u.tube q.cage))
   ::
   ++  generate-header
     |=  fields=(map @t @t)
@@ -582,6 +675,17 @@
             ['name' (rsh [3 1] (spat name))]
         ==
       (generate-entry file-metadata `q.mime.content)
+      ::
+        %cage
+      ::  Convert cage to mime, falling back to noun jamming
+      =/  =mime  (cage-to-mime cage.content)
+      =/  cage-metadata=metadata
+        %-  ~(gas by metadata.content)
+        :~  ['typeflag' '0']
+            ['prefix' (rsh [3 1] (spat prefix))]
+            ['name' (rsh [3 1] (spat name))]
+        ==
+      (generate-entry cage-metadata `q.mime)
     ==
   ::
   ++  make-tarball

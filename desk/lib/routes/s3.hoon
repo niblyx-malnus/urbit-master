@@ -1,5 +1,5 @@
 /-  *master
-/+  io=sailboxio, sailbox, s3
+/+  io=sailboxio, sailbox, s3, tarball
 |%
 ::  Initial S3 credentials
 ::
@@ -15,26 +15,29 @@
 ::  POST /master/s3-upload - Upload text to S3
 ::
 ++  handle-upload
-  |=  [text=@t filename=@t =s3-creds]
+  |=  [text=@t filename=@t]
   =/  m  (fiber:io ,~)
   ^-  form:m
+  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  =/  creds=s3-creds
+    (~(get-cage-as ba:tarball ball.state) / 's3-creds.json' s3-creds)
   ;<  now=@da  bind:m  get-time:io
   ::  Build AWS Signature V4 for PUT request
   =/  [amz-date=@t payload-hash=@t authorization=@t]
     %:  build-signature:s3
       'PUT'
-      access-key.s3-creds
-      secret-key.s3-creds
-      region.s3-creds
-      endpoint.s3-creds
-      bucket.s3-creds
+      access-key.creds
+      secret-key.creds
+      region.creds
+      endpoint.creds
+      bucket.creds
       filename
       ''
       `text
       now
     ==
   ::  Build request URL and headers
-  =/  url=@t  (build-url:s3 endpoint.s3-creds bucket.s3-creds filename ~)
+  =/  url=@t  (build-url:s3 endpoint.creds bucket.creds filename ~)
   =/  headers=(list [@t @t])  (build-headers:s3 'PUT' payload-hash amz-date authorization)
   ::  Prepare body
   =/  body-octs=octs  (as-octs:mimes:html text)
@@ -56,26 +59,29 @@
 ::  POST /master/s3-get - Get file from S3
 ::
 ++  handle-get
-  |=  [filename=@t =s3-creds]
+  |=  filename=@t
   =/  m  (fiber:io ,~)
   ^-  form:m
+  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  =/  creds=s3-creds
+    (~(get-cage-as ba:tarball ball.state) / 's3-creds.json' s3-creds)
   ;<  now=@da  bind:m  get-time:io
   ::  Build AWS Signature V4 for GET request
   =/  [amz-date=@t payload-hash=@t authorization=@t]
     %:  build-signature:s3
       'GET'
-      access-key.s3-creds
-      secret-key.s3-creds
-      region.s3-creds
-      endpoint.s3-creds
-      bucket.s3-creds
+      access-key.creds
+      secret-key.creds
+      region.creds
+      endpoint.creds
+      bucket.creds
       filename
       ''
       ~
       now
     ==
   ::  Build request URL and headers
-  =/  url=@t  (build-url:s3 endpoint.s3-creds bucket.s3-creds filename ~)
+  =/  url=@t  (build-url:s3 endpoint.creds bucket.creds filename ~)
   =/  headers=(list [@t @t])  (build-headers:s3 'GET' payload-hash amz-date authorization)
   ~&  >  "S3 GET Request:"
   ~&  >  ['URL' url]
@@ -94,26 +100,29 @@
 ::  POST /master/s3-delete - Delete file from S3
 ::
 ++  handle-delete
-  |=  [filename=@t =s3-creds]
+  |=  filename=@t
   =/  m  (fiber:io ,~)
   ^-  form:m
+  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  =/  creds=s3-creds
+    (~(get-cage-as ba:tarball ball.state) / 's3-creds.json' s3-creds)
   ;<  now=@da  bind:m  get-time:io
   ::  Build AWS Signature V4 for DELETE request
   =/  [amz-date=@t payload-hash=@t authorization=@t]
     %:  build-signature:s3
       'DELETE'
-      access-key.s3-creds
-      secret-key.s3-creds
-      region.s3-creds
-      endpoint.s3-creds
-      bucket.s3-creds
+      access-key.creds
+      secret-key.creds
+      region.creds
+      endpoint.creds
+      bucket.creds
       filename
       ''
       ~
       now
     ==
   ::  Build request URL and headers
-  =/  url=@t  (build-url:s3 endpoint.s3-creds bucket.s3-creds filename ~)
+  =/  url=@t  (build-url:s3 endpoint.creds bucket.creds filename ~)
   =/  headers=(list [@t @t])  (build-headers:s3 'DELETE' payload-hash amz-date authorization)
   ~&  >  "S3 DELETE Request:"
   ~&  >  ['URL' url]
@@ -132,18 +141,21 @@
 ::  POST /master/s3-list - List files in S3
 ::
 ++  handle-list
-  |=  [prefix=@t =s3-creds]
+  |=  prefix=@t
   =/  m  (fiber:io ,~)
   ^-  form:m
+  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  =/  creds=s3-creds
+    (~(get-cage-as ba:tarball ball.state) / 's3-creds.json' s3-creds)
   ~&  >  "S3 LIST Request:"
   ~&  >  ['Prefix' prefix]
   ;<  file-keys=(list @t)  bind:m
     %:  s3-list:s3
-      access-key.s3-creds
-      secret-key.s3-creds
-      region.s3-creds
-      endpoint.s3-creds
-      bucket.s3-creds
+      access-key.creds
+      secret-key.creds
+      region.creds
+      endpoint.creds
+      bucket.creds
       prefix
     ==
   ~&  >  "S3 LIST Response - Found {<(lent file-keys)>} files:"
@@ -153,18 +165,21 @@
 ::  POST /master/s3-get-directory - Get directory from S3
 ::
 ++  handle-get-directory
-  |=  [prefix=@t =s3-creds]
+  |=  prefix=@t
   =/  m  (fiber:io ,~)
   ^-  form:m
+  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  =/  creds=s3-creds
+    (~(get-cage-as ba:tarball ball.state) / 's3-creds.json' s3-creds)
   ~&  >  "S3 GET DIRECTORY Request:"
   ~&  >  ['Prefix' prefix]
   ;<  ~  bind:m
     %:  s3-get-directory:s3
-      access-key.s3-creds
-      secret-key.s3-creds
-      region.s3-creds
-      endpoint.s3-creds
-      bucket.s3-creds
+      access-key.creds
+      secret-key.creds
+      region.creds
+      endpoint.creds
+      bucket.creds
       prefix
     ==
   (pure:m ~)
@@ -176,7 +191,10 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =.  s3-creds.state  [access-key secret-key region bucket endpoint]
+  =/  creds=s3-creds  [access-key secret-key region bucket endpoint]
+  =/  new-ball=ball:tarball
+    (~(put ba:tarball ball.state) / 's3-creds.json' [%cage ~ [%json !>(creds)]])
+  =.  ball.state  new-ball
   ;<  ~  bind:m  (replace:io !>(state))
   (pure:m ~)
 --

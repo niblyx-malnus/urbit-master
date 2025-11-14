@@ -1,6 +1,6 @@
 /-  *master
 /+  io=sailboxio, sailbox, server, ui-claude, claude, chat-index,
-    sse=sse-helpers, *html-utils
+    sse=sse-helpers, *html-utils, tarball
 |%
 ::  Initial Claude credentials
 ::
@@ -241,11 +241,17 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  ::  Use existing api-key if not provided
-  =/  api-key=@t  (fall (get-key:kv 'api-key' args) api-key.claude-creds.state)
-  ::  Use existing model if not provided
-  =/  ai-model=@t  (fall (get-key:kv 'model' args) ai-model.claude-creds.state)
-  =.  claude-creds.state  [api-key ai-model]
+  ::  Get existing creds from ball
+  =/  existing=claude-creds
+    %-  fall  :_  initial-creds
+    (bind (~(get ba:tarball ball.state) / 'claude-creds.json') |=(c=content:tarball ?>(?=([%cage *] c) !<(claude-creds q:cage.c))))
+  ::  Use existing values if not provided
+  =/  api-key=@t  (fall (get-key:kv 'api-key' args) api-key.existing)
+  =/  ai-model=@t  (fall (get-key:kv 'model' args) ai-model.existing)
+  =/  creds=claude-creds  [api-key ai-model]
+  =/  new-ball=ball:tarball
+    (~(put ba:tarball ball.state) / 'claude-creds.json' [%cage ~ [%json !>(creds)]])
+  =.  ball.state  new-ball
   ;<  ~  bind:m  (replace:io !>(state))
   (pure:m ~)
 --

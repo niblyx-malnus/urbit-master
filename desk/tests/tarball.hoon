@@ -965,4 +965,229 @@
   %-  expect
   !>  (gth later-oct earlier-oct)
 ::
+::  parse-extension tests
+::
+++  test-parse-extension-simple
+  =/  result  (parse-extension:tarball 'data.json')
+  %+  expect-eq
+    !>  `%json
+  !>  result
+::
+++  test-parse-extension-multiple-dots
+  =/  result  (parse-extension:tarball 'my.file.txt')
+  %+  expect-eq
+    !>  `%txt
+  !>  result
+::
+++  test-parse-extension-no-extension
+  =/  result  (parse-extension:tarball 'readme')
+  %+  expect-eq
+    !>  ~
+  !>  result
+::
+++  test-parse-extension-hidden-file
+  =/  result  (parse-extension:tarball '.gitignore')
+  %+  expect-eq
+    !>  `%gitignore
+  !>  result
+::
+++  test-parse-extension-with-hyphen
+  =/  result  (parse-extension:tarball 'page.html-css')
+  %+  expect-eq
+    !>  `%html-css
+  !>  result
+::
+++  test-parse-extension-with-number
+  =/  result  (parse-extension:tarball 'file.mp3')
+  %+  expect-eq
+    !>  `%mp3
+  !>  result
+::
+++  test-parse-extension-uppercase
+  =/  result  (parse-extension:tarball 'IMAGE.PNG')
+  %+  expect-eq
+    !>  `%png
+  !>  result
+::
+++  test-parse-extension-mixed-case
+  =/  result  (parse-extension:tarball 'File.TxT')
+  %+  expect-eq
+    !>  `%txt
+  !>  result
+::
+++  test-parse-extension-single-char
+  =/  result  (parse-extension:tarball 'makefile.c')
+  %+  expect-eq
+    !>  `%c
+  !>  result
+::
+++  test-parse-extension-long-ext
+  =/  result  (parse-extension:tarball 'archive.tar-gz')
+  %+  expect-eq
+    !>  `%tar-gz
+  !>  result
+::
+++  test-parse-extension-path-like
+  =/  result  (parse-extension:tarball 'path/to/file.md')
+  ::  Note: this is just a filename, should still extract .md
+  %+  expect-eq
+    !>  `%md
+  !>  result
+::
+++  test-parse-extension-complex-hyphen
+  =/  result  (parse-extension:tarball 'style.css-min')
+  %+  expect-eq
+    !>  `%css-min
+  !>  result
+::
+++  test-parse-extension-alphanumeric
+  =/  result  (parse-extension:tarball 'video.mp4')
+  %+  expect-eq
+    !>  `%mp4
+  !>  result
+::
+::  mime-to-cage tests
+::
+++  test-mime-to-cage-no-extension
+  =/  conversions  *(map mars:clay tube:clay)
+  =/  test-mime  [/text/plain [5 'hello']]
+  =/  result  (mime-to-cage:tarball conversions 'readme' test-mime)
+  %+  expect-eq
+    !>  ~
+  !>  result
+::
+++  test-mime-to-cage-jammed-no-ext
+  =/  conversions  *(map mars:clay tube:clay)
+  =/  test-data  42
+  =/  jammed  (jam test-data)
+  =/  test-mime  [/application/x-urb-jam (as-octs:mimes:html jammed)]
+  =/  result  (mime-to-cage:tarball conversions 'data' test-mime)
+  ::  No extension - should return ~
+  %+  expect-eq
+    !>  ~
+  !>  result
+::
+++  test-mime-to-cage-jammed-with-ext
+  =/  conversions  *(map mars:clay tube:clay)
+  =/  test-data  [%hello %world]
+  =/  jammed  (jam test-data)
+  =/  test-mime  [/application/x-urb-jam (as-octs:mimes:html jammed)]
+  =/  result  (mime-to-cage:tarball conversions 'data.jam' test-mime)
+  ::  No conversion for .jam - should return ~
+  %+  expect-eq
+    !>  ~
+  !>  result
+::
+++  test-mime-to-cage-no-conversion
+  =/  conversions  *(map mars:clay tube:clay)
+  =/  test-mime  [/text/plain [5 'hello']]
+  =/  result  (mime-to-cage:tarball conversions 'data.txt' test-mime)
+  %+  expect-eq
+    !>  ~
+  !>  result
+::
+++  test-mime-to-cage-with-conversion
+  ::  Mock a conversion from mime to json mark
+  =/  mock-tube=$-(vase vase)
+    |=  v=vase
+    !>([%array ~[[%string 'test']]])
+  =/  conversions=(map mars:clay tube:clay)
+    (~(put by *(map mars:clay tube:clay)) [%mime %json] mock-tube)
+  =/  test-mime  [/application/json [2 '{}']]
+  =/  result  (mime-to-cage:tarball conversions 'data.json' test-mime)
+  ?~  result  !!
+  ;:  weld
+    %+  expect-eq
+      !>  %json
+    !>  p.u.result
+    %+  expect-eq
+      !>  !>([%array ~[[%string 'test']]])
+    !>  q.u.result
+  ==
+::
+++  test-mime-to-cage-uppercase-ext
+  =/  conversions  *(map mars:clay tube:clay)
+  =/  test-mime  [/text/plain [5 'HELLO']]
+  =/  result  (mime-to-cage:tarball conversions 'FILE.TXT' test-mime)
+  ::  Extension should be normalized to lowercase, but no conversion so returns ~
+  %+  expect-eq
+    !>  ~
+  !>  result
+::
+++  test-mime-to-cage-hyphenated-ext
+  =/  conversions  *(map mars:clay tube:clay)
+  =/  test-mime  [/text/html [10 '<p>test</p>']]
+  =/  result  (mime-to-cage:tarball conversions 'page.html-min' test-mime)
+  %+  expect-eq
+    !>  ~
+  !>  result
+::
+++  test-mime-to-cage-jammed-complex
+  =/  conversions  *(map mars:clay tube:clay)
+  =/  test-data=(list @ud)  ~[1 2 3 4 5]
+  =/  jammed  (jam test-data)
+  =/  test-mime  [/application/x-urb-jam (as-octs:mimes:html jammed)]
+  =/  result  (mime-to-cage:tarball conversions 'list.dat' test-mime)
+  ::  No conversion for .dat - should return ~
+  %+  expect-eq
+    !>  ~
+  !>  result
+::
+++  test-mime-to-cage-empty-conversions
+  =/  conversions  *(map mars:clay tube:clay)
+  =/  test-mime  [/text/css [4 'body']]
+  =/  result  (mime-to-cage:tarball conversions 'style.css' test-mime)
+  %+  expect-eq
+    !>  ~
+  !>  result
+::
+++  test-mime-to-cage-multiple-dots
+  =/  conversions  *(map mars:clay tube:clay)
+  =/  test-mime  [/text/plain [3 'hi']]
+  =/  result  (mime-to-cage:tarball conversions 'my.backup.txt' test-mime)
+  %+  expect-eq
+    !>  ~
+  !>  result
+::
+++  test-mime-to-cage-conversion-priority
+  ::  With conversion available, should use it
+  =/  mock-tube=$-(vase vase)
+    |=  v=vase
+    !>('converted')
+  =/  conversions=(map mars:clay tube:clay)
+    (~(put by *(map mars:clay tube:clay)) [%mime %md] mock-tube)
+  =/  test-mime  [/text/markdown [6 '# Test']]
+  =/  result  (mime-to-cage:tarball conversions 'readme.md' test-mime)
+  ?~  result  !!
+  ;:  weld
+    %+  expect-eq
+      !>  %md
+    !>  p.u.result
+    %+  expect-eq
+      !>  !>('converted')
+    !>  q.u.result
+  ==
+::
+++  test-mime-to-cage-conversion-ignores-mime-type
+  ::  Extension determines conversion, not mime type
+  =/  mock-tube=$-(vase vase)
+    |=  v=vase
+    !>('converted-json')
+  =/  conversions=(map mars:clay tube:clay)
+    (~(put by *(map mars:clay tube:clay)) [%mime %json] mock-tube)
+  =/  test-data  %test-atom
+  =/  jammed  (jam test-data)
+  =/  test-mime  [/application/x-urb-jam (as-octs:mimes:html jammed)]
+  =/  result  (mime-to-cage:tarball conversions 'data.json' test-mime)
+  ::  Should use .json conversion even though mime type is x-urb-jam
+  ?~  result  !!
+  ;:  weld
+    %+  expect-eq
+      !>  %json
+    !>  p.u.result
+    %+  expect-eq
+      !>  !>('converted-json')
+    !>  q.u.result
+  ==
+::
 --

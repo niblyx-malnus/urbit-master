@@ -94,13 +94,8 @@
       counter=@ud
       bindings=(set binding:eyre)
       =ball:tarball
-      =telegram-creds
-      =s3-creds
-      =claude-creds
-      =brave-search-creds
       active-chat=(unit @ux)
       claude-chats=(map @ux claude-chat)
-      user-timezone=@t
       telegram-alarms=(map @da telegram-alarm)
       =processes
   ==
