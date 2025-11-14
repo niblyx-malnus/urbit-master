@@ -1,4 +1,4 @@
-/+  server, multipart, sailbox, html-utils
+/+  server, multipart, sailbox, html-utils, tarball
 =|  hold=_| :: switch to interleave vs sequentialize processes
 |%
 ++  fiber  fiber:fiber:sailbox
@@ -54,6 +54,18 @@
   ^-  form:m
   |=  input
   [~ state %done byk.bowl]
+::
+++  get-desk
+  =/  m  (fiber ,desk)
+  ^-  form:m
+  |=  input
+  [~ state %done q.byk.bowl]
+::
+++  get-case
+  =/  m  (fiber ,case)
+  ^-  form:m
+  |=  input
+  [~ state %done r.byk.bowl]
 ::
 ++  get-time
   =/  m  (fiber ,@da)
@@ -680,6 +692,17 @@
     (fiber-fail leaf+<['build-mark' arg]> ~)
   ?>  =(%dais p.r.u.riot)
   (pure:m !<(dais:clay q.r.u.riot))
+::
+++  build-mark-soft
+  |=  [[=ship =desk =case] mak=mark]
+  =/  m  (fiber ,(unit dais:clay))
+  ^-  form:m
+  ;<  =riot:clay  bind:m
+    (warp ship desk ~ %sing %b case /[mak])
+  ?~  riot
+    (pure:m ~)
+  ?>  =(%dais p.r.u.riot)
+  (pure:m `!<(dais:clay q.r.u.riot))
 ::  +build-tube: build a mark conversion gate ($tube)
 ::
 ++  build-tube
@@ -693,6 +716,17 @@
     (fiber-fail leaf+<['build-tube' arg]> ~)
   ?>  =(%tube p.r.u.riot)
   (pure:m !<(tube:clay q.r.u.riot))
+::
+++  build-tube-soft
+  |=  [[=ship =desk =case] =mars:clay]
+  =/  m  (fiber ,(unit tube:clay))
+  ^-  form:m
+  ;<  =riot:clay  bind:m
+    (warp ship desk ~ %sing %c case /[a.mars]/[b.mars])
+  ?~  riot
+    (pure:m ~)
+  ?>  =(%tube p.r.u.riot)
+  (pure:m `!<(tube:clay q.r.u.riot))
 ::
 ::  +build-nave: build a mark definition to a $nave
 ::
@@ -754,4 +788,84 @@
   ?~  riot
     (fiber-fail leaf+<['list-desk' arg]> ~)
   (pure:m !<(arch q.r.u.riot))
+::  +get-dais-map: build a dais map for a single mark
+::
+++  get-dais-map
+  |=  =mark
+  =/  m  (fiber ,(map ^mark dais:clay))
+  ^-  form:m
+  ;<  our=@p  bind:m  get-our
+  ;<  =desk  bind:m  get-desk
+  ;<  now=@da  bind:m  get-time
+  ;<  dais=(unit dais:clay)  bind:m
+    (build-mark-soft [our desk [%da now]] mark)
+  =/  dais-map=(map ^mark dais:clay)
+    ?~  dais  ~
+    (~(gas by *(map ^mark dais:clay)) ~[[mark u.dais]])
+  (pure:m dais-map)
+::  +put-cage: put a cage into a ball with validation and timestamp
+::
+++  put-cage
+  |=  [b=ball:tarball pax=path name=@ta c=cage]
+  =/  m  (fiber ,ball:tarball)
+  ^-  form:m
+  ::  Inline dais-map building
+  ;<  our=@p  bind:m  get-our
+  ;<  =desk  bind:m  get-desk
+  ;<  now=@da  bind:m  get-time
+  ;<  dais=(unit dais:clay)  bind:m
+    (build-mark-soft [our desk [%da now]] p.c)
+  =/  dais-map=(map mark dais:clay)
+    ?~  dais  ~
+    (~(gas by *(map mark dais:clay)) ~[[p.c u.dais]])
+  =/  ba  (~(das ba:tarball b) dais-map)
+  ::  Build metadata with mtime
+  =/  meta=metadata:tarball
+    %-  ~(gas by *(map @t @t))
+    :~  ['mtime' (da-oct:tarball now)]
+    ==
+  =/  content=content:tarball  [%cage meta c]
+  (pure:m (put:ba pax name content))
+::  +mkd: make a directory in a ball with timestamp
+::
+++  mkd
+  |=  [b=ball:tarball pax=path]
+  =/  m  (fiber ,ball:tarball)
+  ^-  form:m
+  ;<  now=@da  bind:m  get-time
+  ::  Build metadata with mtime
+  =/  meta=metadata:tarball
+    %-  ~(gas by *(map @t @t))
+    :~  ['mtime' (da-oct:tarball now)]
+    ==
+  (pure:m (~(mkd ba:tarball b) pax meta))
+::  +put-file: put a file into a ball with timestamp
+::
+++  put-file
+  |=  [b=ball:tarball pax=path name=@ta =mime]
+  =/  m  (fiber ,ball:tarball)
+  ^-  form:m
+  ;<  now=@da  bind:m  get-time
+  ::  Build metadata with mtime and size
+  =/  meta=metadata:tarball
+    %-  ~(gas by *(map @t @t))
+    :~  ['mtime' (da-oct:tarball now)]
+        ['size' (scot %ud p.q.mime)]
+    ==
+  =/  content=content:tarball  [%file meta mime]
+  (pure:m (~(put ba:tarball b) pax name content))
+::  +put-symlink: put a symlink into a ball with timestamp
+::
+++  put-symlink
+  |=  [b=ball:tarball pax=path name=@ta =road:tarball]
+  =/  m  (fiber ,ball:tarball)
+  ^-  form:m
+  ;<  now=@da  bind:m  get-time
+  ::  Build metadata with mtime
+  =/  meta=metadata:tarball
+    %-  ~(gas by *(map @t @t))
+    :~  ['mtime' (da-oct:tarball now)]
+    ==
+  =/  content=content:tarball  [%symlink meta road]
+  (pure:m (~(put ba:tarball b) pax name content))
 --

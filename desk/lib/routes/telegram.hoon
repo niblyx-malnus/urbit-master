@@ -1,5 +1,5 @@
 /-  *master
-/+  io=sailboxio, telegram, tarball
+/+  io=sailboxio, telegram, tarball, json-utils
 |%
 ::  POST /master/telegram - Send telegram message
 ::
@@ -8,14 +8,17 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  creds=(unit telegram-creds)
-    (~(get-cage-as ba:tarball ball.state) /config/creds 'telegram.json' telegram-creds)
-  ?~  creds
+  =/  jon=(unit json)
+    (~(get-cage-as ba:tarball ball.state) /config/creds 'telegram.json' json)
+  ?~  jon
     (fiber-fail:io leaf+"Telegram credentials not configured" ~)
+  =/  j  ~(. jo:json-utils u.jon)
+  =/  bot-token=@t  (dog:j /bot-token so:dejs:format)
+  =/  chat-id=@t  (dog:j /chat-id so:dejs:format)
   ;<  ~  bind:m
     %:  send-message:telegram
-      bot-token.u.creds
-      chat-id.u.creds
+      bot-token
+      chat-id
       message
     ==
   (pure:m ~)
@@ -27,10 +30,15 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  ;<  =bowl:gall  bind:m  get-bowl:io
-  =/  creds=telegram-creds  [bot-token chat-id]
-  =.  ball.state
-    (~(put ba:tarball ball.state) /config/creds 'telegram.json' (make-cage:tarball [%json !>(creds)] now.bowl))
+  ::  Build json directly
+  =/  jon=json
+    %-  pairs:enjs:format
+    :~  ['bot-token' s+bot-token]
+        ['chat-id' s+chat-id]
+    ==
+  ::  Put with validation (single line!)
+  ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /config/creds 'telegram.json' [%json !>(jon)])
+  =.  ball.state  new-ball
   ;<  ~  bind:m  (replace:io !>(state))
   (pure:m ~)
 ::
@@ -48,15 +56,18 @@
   ~&  >  "wake time reached, sending telegram..."
   ::  Get current state to access telegram creds
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  creds=(unit telegram-creds)
-    (~(get-cage-as ba:tarball ball.state) /config/creds 'telegram.json' telegram-creds)
-  ?~  creds
+  =/  jon=(unit json)
+    (~(get-cage-as ba:tarball ball.state) /config/creds 'telegram.json' json)
+  ?~  jon
     (fiber-fail:io leaf+"Telegram credentials not configured" ~)
+  =/  j  ~(. jo:json-utils u.jon)
+  =/  bot-token=@t  (dog:j /bot-token so:dejs:format)
+  =/  chat-id=@t  (dog:j /chat-id so:dejs:format)
   ::  Send telegram
   ;<  ~  bind:m
     %:  send-message:telegram
-      bot-token.u.creds
-      chat-id.u.creds
+      bot-token
+      chat-id
       message.telegram-alarm
     ==
   ::  Remove alarm from state after sending

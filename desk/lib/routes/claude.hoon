@@ -1,6 +1,6 @@
 /-  *master
 /+  io=sailboxio, sailbox, server, ui-claude, claude, chat-index,
-    sse=sse-helpers, *html-utils, tarball
+    sse=sse-helpers, *html-utils, tarball, json-utils
 |%
 ::  POST /master/claude/{id} - Send message to Claude chat
 ::
@@ -181,19 +181,22 @@
 ::  GET /master/claude/{id} - Render chat page
 ::
 ++  handle-get-chat
-  |=  [chat-id=@ux user-timezone=@t creds=(unit claude-creds)]
+  |=  [chat-id=@ux user-timezone=@t creds-jon=(unit json)]
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
   =/  chat=(unit claude-chat)  (~(get by claude-chats.state) chat-id)
   ?~  chat
     (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Chat Not Found')])
-  ::  Use default creds if not configured (for UI display only)
-  =/  display-creds=claude-creds
-    ?~  creds
-      [api-key='' ai-model='claude-sonnet-4-20250514']
-    u.creds
-  (give-simple-payload:io (mime-response:sailbox [/text/html (manx-to-octs:server (chat-page:ui-claude u.chat claude-chats.state user-timezone display-creds))]))
+  ::  Extract creds for UI display (use defaults if not configured)
+  =/  [api-key=@t ai-model=@t]
+    ?~  creds-jon
+      ['' 'claude-sonnet-4-20250514']
+    =/  j  ~(. jo:json-utils u.creds-jon)
+    :*  (dog:j /api-key so:dejs:format)
+        (dog:j /ai-model so:dejs:format)
+    ==
+  (give-simple-payload:io (mime-response:sailbox [/text/html (manx-to-octs:server (chat-page:ui-claude u.chat claude-chats.state user-timezone api-key ai-model))]))
 ::
 ::  GET /master/claude/{id}/messages - Get paginated messages
 ::
@@ -238,22 +241,29 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  ;<  =bowl:gall  bind:m  get-bowl:io
   ::  Get existing creds from ball
-  =/  existing=(unit claude-creds)
-    (~(get-cage-as ba:tarball ball.state) /config/creds 'claude.json' claude-creds)
+  =/  existing=(unit json)
+    (~(get-cage-as ba:tarball ball.state) /config/creds 'claude.json' json)
   ::  Use existing values if not provided
   =/  api-key=@t
     ?~  existing
       (need (get-key:kv 'api-key' args))
-    (fall (get-key:kv 'api-key' args) api-key.u.existing)
+    %.  (get-key:kv 'api-key' args)
+    (curr fall (dog:~(. jo:json-utils u.existing) /api-key so:dejs:format))
   =/  ai-model=@t
     ?~  existing
       (fall (get-key:kv 'model' args) 'claude-sonnet-4-20250514')
-    (fall (get-key:kv 'model' args) ai-model.u.existing)
-  =/  creds=claude-creds  [api-key ai-model]
-  =.  ball.state
-    (~(put ba:tarball ball.state) /config/creds 'claude.json' (make-cage:tarball [%json !>(creds)] now.bowl))
+    %.  (get-key:kv 'model' args)
+    (curr fall (dog:~(. jo:json-utils u.existing) /ai-model so:dejs:format))
+  ::  Build json directly
+  =/  jon=json
+    %-  pairs:enjs:format
+    :~  ['api-key' s+api-key]
+        ['ai-model' s+ai-model]
+    ==
+  ::  Put with validation
+  ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /config/creds 'claude.json' [%json !>(jon)])
+  =.  ball.state  new-ball
   ;<  ~  bind:m  (replace:io !>(state))
   (pure:m ~)
 --

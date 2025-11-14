@@ -1,5 +1,5 @@
 /-  *master
-/+  io=sailboxio, telegram, pytz, random, time, sailbox, server, tarball
+/+  io=sailboxio, telegram, pytz, random, time, sailbox, server, tarball, json-utils
 |%
 ::  Protocol-agnostic tool interface
 ::  This library provides a unified tool definition and execution layer
@@ -191,7 +191,12 @@
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
   =/  timezone=@t
-    (fall (~(get-cage-as ba:tarball ball.state) /config 'timezone.txt' @t) 'UTC')
+    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball.state) /config 'timezone.txt' wain)))
+    ?:  ?=(%| -.tz-result)  'UTC'
+    =/  tz-wain=(unit wain)  p.tz-result
+    ?~  tz-wain  'UTC'
+    ?~  u.tz-wain  'UTC'
+    i.u.tz-wain
   (pure:m [%text timezone])
 ::
 ++  tool-get-ship
@@ -321,12 +326,15 @@
     :~  ['message' so:dejs:format]
     ==
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  creds=(unit telegram-creds)
-    (~(get-cage-as ba:tarball ball.state) /config/creds 'telegram.json' telegram-creds)
-  ?~  creds
+  =/  jon=(unit json)
+    (~(get-cage-as ba:tarball ball.state) /config/creds 'telegram.json' json)
+  ?~  jon
     (pure:m [%error 'Telegram credentials not configured'])
+  =/  j  ~(. jo:json-utils u.jon)
+  =/  bot-token=@t  (dog:j /bot-token so:dejs:format)
+  =/  chat-id=@t  (dog:j /chat-id so:dejs:format)
   ;<  ~  bind:m
-    (send-message:telegram bot-token.u.creds chat-id.u.creds message)
+    (send-message:telegram bot-token chat-id message)
   (pure:m [%text 'Telegram message sent'])
 ::
 ++  tool-schedule-telegram
@@ -447,11 +455,12 @@
     u.parsed
   ::  Get Brave Search API key from state
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  creds=(unit brave-search-creds)
-    (~(get-cage-as ba:tarball ball.state) /config/creds 'brave-search.json' brave-search-creds)
-  ?~  creds
+  =/  jon=(unit json)
+    (~(get-cage-as ba:tarball ball.state) /config/creds 'brave-search.json' json)
+  ?~  jon
     (pure:m [%error 'Brave Search credentials not configured'])
-  =/  api-key=@t  api-key.u.creds
+  =/  j  ~(. jo:json-utils u.jon)
+  =/  api-key=@t  (dog:j /api-key so:dejs:format)
   ::  Build request URL
   =/  url=tape
     %+  weld  "https://api.search.brave.com/res/v1/web/search?q="

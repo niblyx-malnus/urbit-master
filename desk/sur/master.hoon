@@ -1,27 +1,5 @@
 /+  tarball
 |%
-+$  telegram-creds
-  $:  bot-token=@t
-      chat-id=@t
-  ==
-::
-+$  s3-creds
-  $:  access-key=@t
-      secret-key=@t
-      region=@t
-      bucket=@t
-      endpoint=@t
-  ==
-::
-+$  claude-creds
-  $:  api-key=@t
-      ai-model=@t
-  ==
-::
-+$  brave-search-creds
-  $:  api-key=@t
-  ==
-::
 +$  claude-message
   $:  role=@t
       content=json  ::  Can be string or array of content blocks

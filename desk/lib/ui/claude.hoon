@@ -22,7 +22,12 @@
   ^-  wain
   =/  state-data=state-0  !<(state-0 state)
   =/  user-timezone=@t
-    (fall (~(get-cage-as ba:tarball ball.state-data) /config 'timezone.txt' @t) 'UTC')
+    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball.state-data) /config 'timezone.txt' wain)))
+    ?:  ?=(%| -.tz-result)  'UTC'
+    =/  tz-wain=(unit wain)  p.tz-result
+    ?~  tz-wain  'UTC'
+    ?~  u.tz-wain  'UTC'
+    i.u.tz-wain
   ~&  >  "handle-claude-sse called for chat {(hexn:sailbox chat-id)} with event {<event>}"
   =/  chat=(unit claude-chat)  (~(get by claude-chats.state-data) chat-id)
   ?~  chat
@@ -249,7 +254,7 @@
   (render-message-block is-user is-error block-type text timestamp tz-name)
 ::
 ++  chat-page
-  |=  [chat=claude-chat chats=(map @ux claude-chat) user-tz=@t =claude-creds]
+  |=  [chat=claude-chat chats=(map @ux claude-chat) user-tz=@t api-key=@t ai-model=@t]
   ^-  manx
   ::  Get only last 50 messages for initial render
   =/  message-list=(list [@ud claude-message])
@@ -580,7 +585,7 @@
         ==
         ;div(style "margin-bottom: 1rem; padding: 0.75rem; background: var(--b2); border: 1px solid var(--b3); border-radius: 6px;")
           ;label(style "display: block; font-size: 0.85rem; opacity: 0.8; margin-bottom: 0.5rem;"): AI Model
-          ;select(id "model-select", name "model", onchange "updateModel(this.value)", data-current-model (trip ai-model.claude-creds), style "width: 100%; padding: 0.5rem; background: var(--b0); color: var(--f0); border: 1px solid var(--b2); border-radius: 4px; font-size: 0.9rem; cursor: pointer;")
+          ;select(id "model-select", name "model", onchange "updateModel(this.value)", data-current-model (trip ai-model), style "width: 100%; padding: 0.5rem; background: var(--b0); color: var(--f0); border: 1px solid var(--b2); border-radius: 4px; font-size: 0.9rem; cursor: pointer;")
             ;option(value "claude-sonnet-4-5-20250929"): Sonnet 4.5 ($3/$15)
             ;option(value "claude-haiku-4-5"): Haiku 4.5 ($1/$5)
             ;option(value "claude-opus-4-1"): Opus 4.1 ($15/$75)

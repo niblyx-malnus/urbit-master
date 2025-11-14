@@ -57,10 +57,13 @@
     ;<  state=state-0  bind:m  (get-state-as:io state-0)
     ;<  =bowl:gall  bind:m  get-bowl:io
     ::  Create /config and /config/creds directories
-    =.  ball.state  (make-dir:tarball ball.state /config now.bowl)
-    =.  ball.state  (make-dir:tarball ball.state /config/creds now.bowl)
-    ::  Set default timezone to UTC
-    =.  ball.state  (~(put ba:tarball ball.state) /config 'timezone.txt' (make-cage:tarball [%txt !>('UTC')] now.bowl))
+    ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /config)
+    =.  ball.state  new-ball
+    ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /config/creds)
+    =.  ball.state  new-ball
+    ::  Set default timezone to UTC with correct type (wain)
+    ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /config 'timezone.txt' [%txt !>(~['UTC'])])
+    =.  ball.state  new-ball
     ;<  ~  bind:m  (replace:io !>(state))
     ;<  ~  bind:m  (set-bindings:io ~(tap in bindings.state))
     ::  Restart all pending telegram alarms
@@ -68,19 +71,6 @@
     ::
       %on-load :: sent by sailbox
     ;<  state=state-0  bind:m  (get-state-as:io state-0)
-    ;<  =bowl:gall  bind:m  get-bowl:io
-    ::  Create /config and /config/creds directories if they don't exist
-    =/  config-exists=?  ?=(^ (~(dap ba:tarball ball.state) /config))
-    =?  ball.state  !config-exists
-      (make-dir:tarball ball.state /config now.bowl)
-    =/  creds-exists=?  ?=(^ (~(dap ba:tarball ball.state) /config/creds))
-    =?  ball.state  !creds-exists
-      (make-dir:tarball ball.state /config/creds now.bowl)
-    ::  Set default timezone to UTC if not configured
-    =/  timezone-exists=?  (~(has ba:tarball ball.state) /config 'timezone.txt')
-    =?  ball.state  !timezone-exists
-      (~(put ba:tarball ball.state) /config 'timezone.txt' (make-cage:tarball [%txt !>('UTC')] now.bowl))
-    ;<  ~  bind:m  (replace:io !>(state))
     ;<  ~  bind:m  (set-bindings:io ~(tap in bindings.state))
     ::  Restart all pending telegram alarms
     (restart-alarms:telegram telegram-alarms.state)

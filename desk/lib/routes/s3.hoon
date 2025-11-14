@@ -1,6 +1,18 @@
 /-  *master
-/+  io=sailboxio, sailbox, s3, tarball
+/+  io=sailboxio, sailbox, s3, tarball, json-utils
 |%
+::  Helper to extract S3 creds from json
+::
+++  extract-s3-creds
+  |=  jon=json
+  ^-  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
+  =/  j  ~(. jo:json-utils jon)
+  :*  (dog:j /access-key so:dejs:format)
+      (dog:j /secret-key so:dejs:format)
+      (dog:j /region so:dejs:format)
+      (dog:j /endpoint so:dejs:format)
+      (dog:j /bucket so:dejs:format)
+  ==
 ::  POST /master/s3-upload - Upload text to S3
 ::
 ++  handle-upload
@@ -8,27 +20,29 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  creds=(unit s3-creds)
-    (~(get-cage-as ba:tarball ball.state) /config/creds 's3.json' s3-creds)
-  ?~  creds
+  =/  jon=(unit json)
+    (~(get-cage-as ba:tarball ball.state) /config/creds 's3.json' json)
+  ?~  jon
     (fiber-fail:io leaf+"S3 credentials not configured" ~)
+  =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
+    (extract-s3-creds u.jon)
   ;<  now=@da  bind:m  get-time:io
   ::  Build AWS Signature V4 for PUT request
   =/  [amz-date=@t payload-hash=@t authorization=@t]
     %:  build-signature:s3
       'PUT'
-      access-key.u.creds
-      secret-key.u.creds
-      region.u.creds
-      endpoint.u.creds
-      bucket.u.creds
+      access-key
+      secret-key
+      region
+      endpoint
+      bucket
       filename
       ''
       `text
       now
     ==
   ::  Build request URL and headers
-  =/  url=@t  (build-url:s3 endpoint.u.creds bucket.u.creds filename ~)
+  =/  url=@t  (build-url:s3 endpoint bucket filename ~)
   =/  headers=(list [@t @t])  (build-headers:s3 'PUT' payload-hash amz-date authorization)
   ::  Prepare body
   =/  body-octs=octs  (as-octs:mimes:html text)
@@ -54,27 +68,29 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  creds=(unit s3-creds)
-    (~(get-cage-as ba:tarball ball.state) /config/creds 's3.json' s3-creds)
-  ?~  creds
+  =/  jon=(unit json)
+    (~(get-cage-as ba:tarball ball.state) /config/creds 's3.json' json)
+  ?~  jon
     (fiber-fail:io leaf+"S3 credentials not configured" ~)
+  =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
+    (extract-s3-creds u.jon)
   ;<  now=@da  bind:m  get-time:io
   ::  Build AWS Signature V4 for GET request
   =/  [amz-date=@t payload-hash=@t authorization=@t]
     %:  build-signature:s3
       'GET'
-      access-key.u.creds
-      secret-key.u.creds
-      region.u.creds
-      endpoint.u.creds
-      bucket.u.creds
+      access-key
+      secret-key
+      region
+      endpoint
+      bucket
       filename
       ''
       ~
       now
     ==
   ::  Build request URL and headers
-  =/  url=@t  (build-url:s3 endpoint.u.creds bucket.u.creds filename ~)
+  =/  url=@t  (build-url:s3 endpoint bucket filename ~)
   =/  headers=(list [@t @t])  (build-headers:s3 'GET' payload-hash amz-date authorization)
   ~&  >  "S3 GET Request:"
   ~&  >  ['URL' url]
@@ -97,27 +113,29 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  creds=(unit s3-creds)
-    (~(get-cage-as ba:tarball ball.state) /config/creds 's3.json' s3-creds)
-  ?~  creds
+  =/  jon=(unit json)
+    (~(get-cage-as ba:tarball ball.state) /config/creds 's3.json' json)
+  ?~  jon
     (fiber-fail:io leaf+"S3 credentials not configured" ~)
+  =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
+    (extract-s3-creds u.jon)
   ;<  now=@da  bind:m  get-time:io
   ::  Build AWS Signature V4 for DELETE request
   =/  [amz-date=@t payload-hash=@t authorization=@t]
     %:  build-signature:s3
       'DELETE'
-      access-key.u.creds
-      secret-key.u.creds
-      region.u.creds
-      endpoint.u.creds
-      bucket.u.creds
+      access-key
+      secret-key
+      region
+      endpoint
+      bucket
       filename
       ''
       ~
       now
     ==
   ::  Build request URL and headers
-  =/  url=@t  (build-url:s3 endpoint.u.creds bucket.u.creds filename ~)
+  =/  url=@t  (build-url:s3 endpoint bucket filename ~)
   =/  headers=(list [@t @t])  (build-headers:s3 'DELETE' payload-hash amz-date authorization)
   ~&  >  "S3 DELETE Request:"
   ~&  >  ['URL' url]
@@ -140,19 +158,21 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  creds=(unit s3-creds)
-    (~(get-cage-as ba:tarball ball.state) /config/creds 's3.json' s3-creds)
-  ?~  creds
+  =/  jon=(unit json)
+    (~(get-cage-as ba:tarball ball.state) /config/creds 's3.json' json)
+  ?~  jon
     (fiber-fail:io leaf+"S3 credentials not configured" ~)
+  =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
+    (extract-s3-creds u.jon)
   ~&  >  "S3 LIST Request:"
   ~&  >  ['Prefix' prefix]
   ;<  file-keys=(list @t)  bind:m
     %:  s3-list:s3
-      access-key.u.creds
-      secret-key.u.creds
-      region.u.creds
-      endpoint.u.creds
-      bucket.u.creds
+      access-key
+      secret-key
+      region
+      endpoint
+      bucket
       prefix
     ==
   ~&  >  "S3 LIST Response - Found {<(lent file-keys)>} files:"
@@ -166,19 +186,21 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  creds=(unit s3-creds)
-    (~(get-cage-as ba:tarball ball.state) /config/creds 's3.json' s3-creds)
-  ?~  creds
+  =/  jon=(unit json)
+    (~(get-cage-as ba:tarball ball.state) /config/creds 's3.json' json)
+  ?~  jon
     (fiber-fail:io leaf+"S3 credentials not configured" ~)
+  =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
+    (extract-s3-creds u.jon)
   ~&  >  "S3 GET DIRECTORY Request:"
   ~&  >  ['Prefix' prefix]
   ;<  ~  bind:m
     %:  s3-get-directory:s3
-      access-key.u.creds
-      secret-key.u.creds
-      region.u.creds
-      endpoint.u.creds
-      bucket.u.creds
+      access-key
+      secret-key
+      region
+      endpoint
+      bucket
       prefix
     ==
   (pure:m ~)
@@ -190,10 +212,17 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  ;<  =bowl:gall  bind:m  get-bowl:io
-  =/  creds=s3-creds  [access-key secret-key region bucket endpoint]
-  =/  new-ball=ball:tarball
-    (~(put ba:tarball ball.state) /config/creds 's3.json' (make-cage:tarball [%json !>(creds)] now.bowl))
+  ::  Build json directly
+  =/  jon=json
+    %-  pairs:enjs:format
+    :~  ['access-key' s+access-key]
+        ['secret-key' s+secret-key]
+        ['region' s+region]
+        ['bucket' s+bucket]
+        ['endpoint' s+endpoint]
+    ==
+  ::  Put with validation
+  ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /config/creds 's3.json' [%json !>(jon)])
   =.  ball.state  new-ball
   ;<  ~  bind:m  (replace:io !>(state))
   (pure:m ~)

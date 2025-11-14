@@ -1,5 +1,5 @@
 /-  *master
-/+  io=sailboxio, sailbox, server, ui-master, ui-ball, html-utils, tarball, multipart
+/+  io=sailboxio, sailbox, server, ui-master, ui-ball, html-utils, tarball, multipart, json-utils
 /=  claude-routes  /lib/routes/claude
 /=  s3-routes  /lib/routes/s3
 /=  telegram-routes  /lib/routes/telegram
@@ -7,12 +7,99 @@
 /=  mcp-routes  /lib/routes/mcp
 =,  html-utils
 |%
-::  Helper to get claude creds from ball
+::  Helper to get claude creds from ball as json
 ::
 ++  get-claude-creds
   |=  =ball:tarball
-  ^-  (unit claude-creds)
-  (~(get-cage-as ba:tarball ball) /config/creds 'claude.json' claude-creds)
+  ^-  (unit json)
+  (~(get-cage-as ba:tarball ball) /config/creds 'claude.json' json)
+::  Helper to collect all marks used in cages within a ball
+::
+++  collect-marks
+  |=  =ball:tarball
+  ^-  (set mark)
+  =/  marks=(set mark)  ~
+  ::  Collect marks from current node's contents
+  =?  marks  ?=(^ fil.ball)
+    =/  entries=(list (pair @ta content:tarball))
+      ~(tap by contents.u.fil.ball)
+    |-  ^-  (set mark)
+    ?~  entries  marks
+    =*  content  q.i.entries
+    ?.  ?=(%cage -.content)
+      $(entries t.entries)
+    $(entries t.entries, marks (~(put in marks) p.cage.content))
+  ::  Recurse into subdirectories
+  =/  subdirs=(list (pair @ta ball:tarball))  ~(tap by dir.ball)
+  |-  ^-  (set mark)
+  ?~  subdirs  marks
+  =/  submarks=(set mark)  ^$(ball q.i.subdirs)
+  $(subdirs t.subdirs, marks (~(uni in marks) submarks))
+::  Helper to build a single tube, trying our desk first then %base
+::
+++  try-build-tube
+  |=  [our=@p =desk =case =mars:clay]
+  =/  m  (fiber:io ,(unit tube:clay))
+  ^-  form:m
+  ;<  tube=(unit tube:clay)  bind:m
+    (build-tube-soft:io [our desk case] mars)
+  ?^  tube
+    (pure:m tube)
+  (build-tube-soft:io [our %base case] mars)
+::  Helper to build a single dais, trying our desk first then %base
+::
+++  try-build-dais
+  |=  [our=@p =desk =case =mark]
+  =/  m  (fiber:io ,(unit dais:clay))
+  ^-  form:m
+  ;<  dais=(unit dais:clay)  bind:m
+    (build-mark-soft:io [our desk case] mark)
+  ?^  dais
+    (pure:m dais)
+  (build-mark-soft:io [our %base case] mark)
+::  Helper to build mark dais map for all marks in a ball
+::
+++  get-mark-dais
+  |=  =ball:tarball
+  =/  m  (fiber:io ,(map mark dais:clay))
+  ^-  form:m
+  ;<  our=@p  bind:m  get-our:io
+  ;<  =desk  bind:m  get-desk:io
+  ;<  now=@da  bind:m  get-time:io
+  =/  =case  [%da now]
+  =/  marks=(list mark)  ~(tap in (collect-marks ball))
+  =/  dais-map=(map mark dais:clay)  ~
+  |-  ^-  form:m
+  ?~  marks
+    (pure:m dais-map)
+  ;<  dais-result=(unit dais:clay)  bind:m
+    (try-build-dais our desk case i.marks)
+  =?  dais-map  ?=(^ dais-result)
+    (~(put by dais-map) i.marks u.dais-result)
+  $(marks t.marks)
+::  Helper to build mark conversions, trying our desk first then %base
+::
+++  get-mark-conversions
+  |=  =ball:tarball
+  =/  m  (fiber:io ,(map mars:clay tube:clay))
+  ^-  form:m
+  ;<  our=@p  bind:m  get-our:io
+  ;<  =desk  bind:m  get-desk:io
+  ;<  now=@da  bind:m  get-time:io
+  =/  =case  [%da now]
+  =/  marks=(list mark)  ~(tap in (collect-marks ball))
+  =/  conversions=(map mars:clay tube:clay)  ~
+  |-  ^-  form:m
+  ?~  marks
+    (pure:m conversions)
+  =/  from=mark  i.marks
+  =/  to=mark  %mime
+  =/  =mars:clay  [from to]
+  ;<  tube-result=(unit tube:clay)  bind:m
+    (try-build-tube our desk case mars)
+  =?  conversions  ?=(^ tube-result)
+    (~(put by conversions) mars u.tube-result)
+  $(marks t.marks)
 ::  GET request router
 ::
 ++  handle-get-request
@@ -22,7 +109,13 @@
       ==
   =/  m  (fiber:io ,~)
   ^-  form:m
-  =/  user-timezone=@t  (fall (~(get-cage-as ba:tarball ball.state) /config 'timezone.txt' @t) 'UTC')
+  =/  user-timezone=@t
+    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball.state) /config 'timezone.txt' wain)))
+    ?:  ?=(%| -.tz-result)  'UTC'
+    =/  tz-wain=(unit wain)  p.tz-result
+    ?~  tz-wain  'UTC'
+    ?~  u.tz-wain  'UTC'
+    i.u.tz-wain
   =/  lin=request-line:server  (parse-request-line:server url.request.req)
   ::  Check authentication
   ?.  =(our src):bowl
@@ -47,21 +140,21 @@
   ::
       [%master %claude @ ~]
     =/  chat-id=@ux  (rash i.t.t.site.lin hex)
-    =/  creds=(unit claude-creds)  (get-claude-creds ball.state)
-    (handle-get-chat:claude-routes chat-id user-timezone creds)
+    =/  creds-jon=(unit json)  (get-claude-creds ball.state)
+    (handle-get-chat:claude-routes chat-id user-timezone creds-jon)
   ::
       [%master %claude @ %messages ~]
     =/  chat-id=@ux  (rash i.t.t.site.lin hex)
     (handle-get-messages:claude-routes chat-id args.lin user-timezone)
   ::
       [%master %ball ~]
-    =/  conversions=(map mars:clay tube:clay)  ~
+    ;<  conversions=(map mars:clay tube:clay)  bind:m  (get-mark-conversions ball.state)
     =/  =simple-payload:http
       (mime-response:sailbox (handle-ball-get:ui-ball ball.state bowl conversions ~ [ext args]:lin))
     (give-simple-payload:io simple-payload)
   ::
       [%master %ball *]
-    =/  conversions=(map mars:clay tube:clay)  ~
+    ;<  conversions=(map mars:clay tube:clay)  bind:m  (get-mark-conversions ball.state)
     =/  ball-path=(list @t)  t.t.site.lin
     =/  =simple-payload:http
       %-  mime-response:sailbox
@@ -141,7 +234,13 @@
       ==
   =/  m  (fiber:io ,~)
   ^-  form:m
-  =/  user-timezone=@t  (fall (~(get-cage-as ba:tarball ball.state) /config 'timezone.txt' @t) 'UTC')
+  =/  user-timezone=@t
+    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball.state) /config 'timezone.txt' wain)))
+    ?:  ?=(%| -.tz-result)  'UTC'
+    =/  tz-wain=(unit wain)  p.tz-result
+    ?~  tz-wain  'UTC'
+    ?~  u.tz-wain  'UTC'
+    i.u.tz-wain
   =/  args=key-value-list:kv  (parse-body:kv body.request.req)
   ?+    site  !!
       [%master %test-sse ~]
@@ -166,8 +265,8 @@
       [%master %set-timezone ~]
     =/  timezone=@t  (need (get-key:kv 'timezone' args))
     ;<  state=state-0  bind:m  (get-state-as:io state-0)
-    ;<  =bowl:gall  bind:m  get-bowl:io
-    =.  ball.state  (~(put ba:tarball ball.state) /config 'timezone.txt' (make-cage:tarball [%txt !>(timezone)] now.bowl))
+    ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /config 'timezone.txt' [%txt !>(~[timezone])])
+    =.  ball.state  new-ball
     ;<  ~  bind:m  (replace:io !>(state))
     (give-simple-payload:io [[200 ~] ~])
   ::
@@ -224,14 +323,17 @@
     =/  chat-id=@ux  (rash i.t.t.site hex)
     =/  message=@t  (need (get-key:kv 'message' args))
     ;<  state=state-0  bind:m  (get-state-as:io state-0)
-    =/  creds=(unit claude-creds)  (get-claude-creds ball.state)
-    ?~  creds
+    =/  creds-jon=(unit json)  (get-claude-creds ball.state)
+    ?~  creds-jon
       (fiber-fail:io leaf+"Claude credentials not configured" ~)
+    =/  j  ~(. jo:json-utils u.creds-jon)
+    =/  api-key=@t  (dog:j /api-key so:dejs:format)
+    =/  ai-model=@t  (dog:j /ai-model so:dejs:format)
     %:  handle-message:claude-routes
       chat-id
       message
-      api-key.u.creds
-      ai-model.u.creds
+      api-key
+      ai-model
       user-timezone
     ==
   ::
@@ -245,17 +347,17 @@
     =/  action=@t  (need (get-key:kv 'action' args))
     ?+    action  (give-simple-payload:io [[400 ~] `(as-octs:mimes:html 'Unknown action')])
         %'create-folder'
-      ;<  =bowl:gall  bind:m  get-bowl:io
-      =/  foldername=@ta  (rash (need (get-key:kv 'foldername' args)) sym)
-      =.  ball.state  (make-dir:tarball ball.state /[foldername] now.bowl)
       ;<  state=state-0  bind:m  (get-state-as:io state-0)
+      =/  foldername=@ta  (rash (need (get-key:kv 'foldername' args)) sym)
+      ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /[foldername])
+      =.  ball.state  new-ball
       ;<  ~  bind:m  (replace:io !>(state))
       (give-simple-payload:io [[303 ~[['location' '/master/ball']]] ~])
     ==
   ::
       [%master %ball *]
     ::  Handle ball actions in subdirectories
-    ;<  =bowl:gall  bind:m  get-bowl:io
+    ;<  state=state-0  bind:m  (get-state-as:io state-0)
     =/  ball-path=path  t.t.site
     =/  action=@t  (need (get-key:kv 'action' args))
     =/  redirect-url=tape  (weld "/master/ball" (trip (spat ball-path)))
@@ -263,8 +365,8 @@
         %'create-folder'
       =/  foldername=@ta  (rash (need (get-key:kv 'foldername' args)) sym)
       =/  dir-path=path  (snoc ball-path foldername)
-      =.  ball.state  (make-dir:tarball ball.state dir-path now.bowl)
-      ;<  state=state-0  bind:m  (get-state-as:io state-0)
+      ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state dir-path)
+      =.  ball.state  new-ball
       ;<  ~  bind:m  (replace:io !>(state))
       (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
     ::
@@ -272,8 +374,8 @@
       =/  linkname=@ta  (rash (need (get-key:kv 'linkname' args)) sym)
       =/  target=@t  (need (get-key:kv 'target' args))
       =/  road=road:tarball  (need (parse-road:tarball target))
-      =.  ball.state  (~(put ba:tarball ball.state) ball-path linkname (make-symlink:tarball road now.bowl))
-      ;<  state=state-0  bind:m  (get-state-as:io state-0)
+      ;<  new-ball=ball:tarball  bind:m  (put-symlink:io ball.state ball-path linkname road)
+      =.  ball.state  new-ball
       ;<  ~  bind:m  (replace:io !>(state))
       (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
     ::

@@ -58,36 +58,6 @@
     %css   `/text/css
     %js    `/text/javascript
   ==
-::  Helper functions for creating content with automatic mtime
-::
-++  auto-mtime
-  |=  now=@da
-  ^-  metadata
-  %-  ~(gas by *(map @t @t))
-  :~  ['mtime' (da-oct now)]
-  ==
-::
-++  make-dir
-  |=  [b=ball pax=path now=@da]
-  ^-  ball
-  (~(mkd ba b) pax (auto-mtime now))
-::
-++  make-file
-  |=  [=mime now=@da]
-  ^-  content
-  =/  meta=metadata
-    (~(put by (auto-mtime now)) 'size' (scot %ud p.q.mime))
-  [%file meta mime]
-::
-++  make-cage
-  |=  [=cage now=@da]
-  ^-  content
-  [%cage (auto-mtime now) cage]
-::
-++  make-symlink
-  |=  [=road now=@da]
-  ^-  content
-  [%symlink (auto-mtime now) road]
 ::  Parse file extension (alphanumeric + hyphens, case-insensitive)
 ::  Parses from reversed input like ++deft:de-purl:html in zuse
 ::  Must start with a letter (not digit), and be non-empty
@@ -306,7 +276,15 @@
   $(parts t.parts, base new-base)
 ::
 ++  ba
+  =|  d=(map mark dais:clay)
   |_  b=ball
+  +*  dis  .
+  ::  Set the dais map for mark validation
+  ::
+  ++  das
+    |=  d=(map mark dais:clay)
+    ^+  dis
+    dis(d d)
   ::  Get a content item (file or symlink) by directory path and name
   ::
   ++  get
@@ -316,6 +294,7 @@
       ~
     (~(get by contents.u.nod) name)
   ::  Put a content item at directory path with name
+  ::  Validates cages using mark system, passes through files/symlinks
   ::
   ++  put
     |=  [pax=path name=@ta c=content]
@@ -325,11 +304,43 @@
             =(0 p.q.mime.c)
         ==
       ~|("empty file {(spud (weld pax /[name]))}" !!)
+    ::  Non-cage content: put directly
+    ?.  ?=([%cage *] c)
+      =/  lmp=lump
+        ?~  nod=(~(get of b) pax)
+          [~ ~]
+        u.nod
+      (~(put of b) pax lmp(contents (~(put by contents.lmp) name c)))
+    ::  Cage content: validate first
+    =/  validated-cage=cage  (validate-cage pax name cage.c)
     =/  lmp=lump
       ?~  nod=(~(get of b) pax)
         [~ ~]
       u.nod
-    (~(put of b) pax lmp(contents (~(put by contents.lmp) name c)))
+    (~(put of b) pax lmp(contents (~(put by contents.lmp) name c(cage validated-cage))))
+  ::  Validate a cage using mark system
+  ::
+  ++  validate-cage
+    |=  [pax=path name=@ta new-cage=cage]
+    ^-  cage
+    ::  Check if there's an existing cage at this location
+    =/  old-content=(unit content)  (get pax name)
+    ::  Same-mark update with nesting types: canonicalize without dais
+    ?:  ?&  ?=(^ old-content)
+            ?=([%cage *] u.old-content)
+            =(p.cage.u.old-content p.new-cage)
+            (~(nest ut p.q.cage.u.old-content) | p.q.new-cage)
+        ==
+      =/  old-cage=cage  cage.u.old-content
+      [p.new-cage [p.q.old-cage q.q.new-cage]]
+    ::  All other cases: REQUIRE dais
+    =/  dais-result=(unit dais:clay)
+      (~(get by d) p.new-cage)
+    ?~  dais-result
+      ~|("dais required for cage validation: {<p.new-cage>}" !!)
+    =/  =dais:clay  u.dais-result
+    =/  validated-vase=vase  (vale:dais q.q.new-cage)
+    [p.new-cage validated-vase]
   ::  Check if a content item exists
   ::
   ++  has
@@ -642,7 +653,17 @@
     ?~  tube=(~(get by conversions) key)
       ::  No conversion available, fall back to jamming like mar/noun.hoon
       [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))]
-    !<(mime (u.tube q.cage))
+    ::  Try the direct tube conversion
+    =/  result=(each vase tang)  (mule |.((u.tube q.cage)))
+    ?:  ?=([%| *] result)
+      ::  Tube conversion failed, fall back to jamming
+      [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))]
+    ::  Successfully converted, check what we got
+    ::  The tube should produce a vase of a mime, extract it
+    =/  extracted  (mule |.(!<(mime p.result)))
+    ?:  ?=([%| *] extracted)
+      [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))]
+    p.extracted
   ::
   ++  generate-header
     |=  fields=(map @t @t)
