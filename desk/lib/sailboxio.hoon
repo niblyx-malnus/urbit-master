@@ -463,6 +463,25 @@
   ;<  ~  bind:m  (send-wait until)
   (take-wake `until)
 ::
+++  mass
+  =/  m  (fiber ,(list quac:dill))
+  ^-  form:m
+  =/  =card:agent:gall  [%pass /mass %arvo %d %mass ~]
+  ;<  ~  bind:m  (send-raw-card card)
+  ;<  quz=(list quac:dill)  bind:m  take-meme
+  (pure:m quz)
+::
+++  take-meme
+  =/  m  (fiber ,(list quac:dill))
+  ^-  form:m
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
+      [~ %arvo [%mass ~] %dill %meme *]
+    [%done p.sign.u.in]
+  ==
+::
 ++  take-wake
   |=  until=(unit @da)
   =/  m  (fiber ,~)
@@ -602,4 +621,137 @@
   =/  m  (fiber ,~)
   ^-  form:m
   (pure:m ((slog tang) ~))
+::  Take Clay read result
+::
+++  take-writ
+  |=  =wire
+  =/  m  (fiber ,riot:clay)
+  ^-  form:m
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip hold]
+      ~  [%wait hold]
+      [~ %arvo * ?(%behn %clay) %writ *]
+    ?.  =(wire wire.u.in)
+      [%skip hold]
+    [%done +>.sign.u.in]
+  ==
+::  Read from Clay
+::
+++  warp
+  |=  [=ship =riff:clay]
+  =/  m  (fiber ,riot:clay)
+  ;<  ~  bind:m  (send-raw-card %pass /warp %arvo %c %warp ship riff)
+  (take-writ /warp)
+::
+++  build-file
+  |=  [[=ship =desk =case] =spur]
+  =*  arg  +<
+  =/  m  (fiber ,(unit vase))
+  ^-  form:m
+  ;<  =riot:clay  bind:m
+    (warp ship desk ~ %sing %a case spur)
+  ?~  riot
+    (pure:m ~)
+  ?>  =(%vase p.r.u.riot)
+  (pure:m (some !<(vase q.r.u.riot)))
+::
+++  build-file-hard
+  |=  [[=ship =desk =case] =spur]
+  =*  arg  +<
+  =/  m  (fiber ,vase)
+  ^-  form:m
+  ;<    =riot:clay
+      bind:m
+    (warp ship desk ~ %sing %a case spur)
+  ?>  ?=(^ riot)
+  ?>  ?=(%vase p.r.u.riot)
+  (pure:m !<(vase q.r.u.riot))
+::  +build-mark: build a mark definition to a $dais
+::
+++  build-mark
+  |=  [[=ship =desk =case] mak=mark]
+  =*  arg  +<
+  =/  m  (fiber ,dais:clay)
+  ^-  form:m
+  ;<  =riot:clay  bind:m
+    (warp ship desk ~ %sing %b case /[mak])
+  ?~  riot
+    (fiber-fail leaf+<['build-mark' arg]> ~)
+  ?>  =(%dais p.r.u.riot)
+  (pure:m !<(dais:clay q.r.u.riot))
+::  +build-tube: build a mark conversion gate ($tube)
+::
+++  build-tube
+  |=  [[=ship =desk =case] =mars:clay]
+  =*  arg  +<
+  =/  m  (fiber ,tube:clay)
+  ^-  form:m
+  ;<  =riot:clay  bind:m
+    (warp ship desk ~ %sing %c case /[a.mars]/[b.mars])
+  ?~  riot
+    (fiber-fail leaf+<['build-tube' arg]> ~)
+  ?>  =(%tube p.r.u.riot)
+  (pure:m !<(tube:clay q.r.u.riot))
+::
+::  +build-nave: build a mark definition to a $nave
+::
+++  build-nave
+  |=  [[=ship =desk =case] mak=mark]
+  =*  arg  +<
+  =/  m  (fiber ,vase)
+  ^-  form:m
+  ;<  =riot:clay  bind:m
+    (warp ship desk ~ %sing %e case /[mak])
+  ?~  riot
+    (fiber-fail leaf+<['build-nave' arg]> ~)
+  ?>  =(%nave p.r.u.riot)
+  (pure:m q.r.u.riot)
+::  +build-cast: build a mark conversion gate (static)
+::
+++  build-cast
+  |=  [[=ship =desk =case] =mars:clay]
+  =*  arg  +<
+  =/  m  (fiber ,vase)
+  ^-  form:m
+  ;<  =riot:clay  bind:m
+    (warp ship desk ~ %sing %f case /[a.mars]/[b.mars])
+  ?~  riot
+    (fiber-fail leaf+<['build-cast' arg]> ~)
+  ?>  =(%cast p.r.u.riot)
+  (pure:m q.r.u.riot)
+::
+++  read-file
+  |=  [[=ship =desk =case] =spur]
+  =*  arg  +<
+  =/  m  (fiber ,cage)
+  ;<  =riot:clay  bind:m  (warp ship desk ~ %sing %x case spur)
+  ?~  riot
+    (fiber-fail leaf+<['read-file' arg]> ~)
+  (pure:m r.u.riot)
+::
+++  check-for-file
+  |=  [[=ship =desk =case] =spur]
+  =/  m  (fiber ,?)
+  ;<  =riot:clay  bind:m  (warp ship desk ~ %sing %u case spur)
+  ?>  ?=(^ riot)
+  (pure:m !<(? q.r.u.riot))
+::
+++  list-tree
+  |=  [[=ship =desk =case] =spur]
+  =*  arg  +<
+  =/  m  (fiber ,(list path))
+  ;<  =riot:clay  bind:m  (warp ship desk ~ %sing %t case spur)
+  ?~  riot
+    (fiber-fail leaf+<['list-tree' arg]> ~)
+  (pure:m !<((list path) q.r.u.riot))
+::
+++  list-desk
+  |=  [[=ship =desk =case] =spur]
+  =*  arg  +<
+  =/  m  (fiber ,arch)
+  ;<  =riot:clay  bind:m  (warp ship desk ~ %sing %y case spur)
+  ?~  riot
+    (fiber-fail leaf+<['list-desk' arg]> ~)
+  (pure:m !<(arch q.r.u.riot))
 --
