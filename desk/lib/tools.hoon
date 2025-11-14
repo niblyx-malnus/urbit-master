@@ -190,7 +190,8 @@
   =/  m  (fiber:io ,tool-result)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  timezone=@t  (~(get-cage-as ba:tarball ball.state) / 'user-timezone.txt' @t)
+  =/  timezone=@t
+    (fall (~(get-cage-as ba:tarball ball.state) /config 'timezone.txt' @t) 'UTC')
   (pure:m [%text timezone])
 ::
 ++  tool-get-ship
@@ -320,10 +321,12 @@
     :~  ['message' so:dejs:format]
     ==
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  creds=telegram-creds
-    (~(get-cage-as ba:tarball ball.state) / 'telegram-creds.json' telegram-creds)
+  =/  creds=(unit telegram-creds)
+    (~(get-cage-as ba:tarball ball.state) /config/creds 'telegram.json' telegram-creds)
+  ?~  creds
+    (pure:m [%error 'Telegram credentials not configured'])
   ;<  ~  bind:m
-    (send-message:telegram bot-token.creds chat-id.creds message)
+    (send-message:telegram bot-token.u.creds chat-id.u.creds message)
   (pure:m [%text 'Telegram message sent'])
 ::
 ++  tool-schedule-telegram
@@ -444,9 +447,11 @@
     u.parsed
   ::  Get Brave Search API key from state
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  creds=brave-search-creds
-    (~(get-cage-as ba:tarball ball.state) / 'brave-search-creds.json' brave-search-creds)
-  =/  api-key=@t  api-key.creds
+  =/  creds=(unit brave-search-creds)
+    (~(get-cage-as ba:tarball ball.state) /config/creds 'brave-search.json' brave-search-creds)
+  ?~  creds
+    (pure:m [%error 'Brave Search credentials not configured'])
+  =/  api-key=@t  api-key.u.creds
   ::  Build request URL
   =/  url=tape
     %+  weld  "https://api.search.brave.com/res/v1/web/search?q="

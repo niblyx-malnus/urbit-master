@@ -58,6 +58,36 @@
     %css   `/text/css
     %js    `/text/javascript
   ==
+::  Helper functions for creating content with automatic mtime
+::
+++  auto-mtime
+  |=  now=@da
+  ^-  metadata
+  %-  ~(gas by *(map @t @t))
+  :~  ['mtime' (da-oct now)]
+  ==
+::
+++  make-dir
+  |=  [b=ball pax=path now=@da]
+  ^-  ball
+  (~(mkd ba b) pax (auto-mtime now))
+::
+++  make-file
+  |=  [=mime now=@da]
+  ^-  content
+  =/  meta=metadata
+    (~(put by (auto-mtime now)) 'size' (scot %ud p.q.mime))
+  [%file meta mime]
+::
+++  make-cage
+  |=  [=cage now=@da]
+  ^-  content
+  [%cage (auto-mtime now) cage]
+::
+++  make-symlink
+  |=  [=road now=@da]
+  ^-  content
+  [%symlink (auto-mtime now) road]
 ::  Parse file extension (alphanumeric + hyphens, case-insensitive)
 ::  Parses from reversed input like ++deft:de-purl:html in zuse
 ::  Must start with a letter (not digit), and be non-empty
@@ -334,7 +364,7 @@
     (fall (get pax name) default)
   ::  Get a cage (crash if not found or not a cage)
   ::
-  ++  get-cage
+  ++  got-cage
     |=  [pax=path name=@ta]
     ^-  cage
     =/  c=content  (got pax name)
@@ -343,7 +373,7 @@
     ~|("not a cage: {(spud (snoc pax name))}" !!)
   ::  Get a file (crash if not found or not a file)
   ::
-  ++  get-file
+  ++  got-file
     |=  [pax=path name=@ta]
     ^-  mime
     =/  c=content  (got pax name)
@@ -352,7 +382,7 @@
     ~|("not a file: {(spud (snoc pax name))}" !!)
   ::  Get a symlink (crash if not found or not a symlink)
   ::
-  ++  get-symlink
+  ++  got-symlink
     |=  [pax=path name=@ta]
     ^-  road
     =/  c=content  (got pax name)
@@ -361,10 +391,20 @@
     ~|("not a symlink: {(spud (snoc pax name))}" !!)
   ::  Get cage and extract as specific type (crash if wrong type)
   ::
-  ++  get-cage-as
+  ++  got-cage-as
     |*  [pax=path name=@ta a=mold]
     ^-  a
-    !<(a q:(get-cage pax name))
+    !<(a q:(got-cage pax name))
+  ::  Get cage as unit (returns ~ if not found)
+  ::
+  ++  get-cage-as
+    |*  [pax=path name=@ta a=mold]
+    ^-  (unit a)
+    ?~  may=(get pax name)
+      ~
+    ?.  ?=([%cage *] u.may)
+      ~
+    `!<(a q:cage.u.may)
   ::  Count total content items across all directories
   ::
   ++  wyt

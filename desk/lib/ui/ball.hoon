@@ -7,6 +7,7 @@
 ++  handle-ball-get
   |=  $:  =ball:tarball
           =bowl:gall
+          conversions=(map mars:clay tube:clay)
           ball-path=(list @t)
           ext=(unit @ta)
           args=(list [key=@t value=@t])
@@ -25,7 +26,7 @@
   ?:  ?&(?=(^ download-param) =(u.download-param 'tar'))
     ::  Generate tarball for current directory
     =/  subball=ball:tarball  (~(dip ba:tarball ball) ball-path)
-    =/  tar=tarball:tarball  (~(make-tarball gen:tarball bowl) ball-path subball)
+    =/  tar=tarball:tarball  (~(make-tarball gen:tarball [bowl conversions]) ball-path subball)
     =/  tar-data=octs  (encode-tarball:tarball tar)
     ::  Generate filename based on directory path
     =/  dir-name=@t
@@ -43,30 +44,38 @@
     ::  Append extension to filename
     =/  filename=@ta  (crip "{(trip base-name)}.{(trip u.ext)}")
     =/  content-data=(unit content:tarball)  (~(get ba:tarball ball) parent filename)
-    ?^  content-data
-      ?>  ?=([%file *] u.content-data)
-      mime.u.content-data
-    [/text/plain (as-octs:mimes:html 'file not found')]
+    ?~  content-data
+      [/text/plain (as-octs:mimes:html 'file not found')]
+    ?-  -.u.content-data
+      %file  mime.u.content-data
+      %cage
+        (~(cage-to-mime gen:tarball [bowl conversions]) cage.u.content-data)
+      %symlink  [/text/plain (as-octs:mimes:html 'symlink')]
+    ==
   ::  No ext - try as directory first, fallback to file
   =/  dir-exists=(unit ball:tarball)  (~(dap ba:tarball ball) ball-path)
   ?^  dir-exists
     ::  Directory exists, show browser
-    [/text/html (manx-to-octs:server (ball-browser ball ball-path %.y))]
+    [/text/html (manx-to-octs:server (ball-browser ball ball-path bowl conversions %.y))]
   ::  Directory doesn't exist, try as file
   ?~  ball-path
     ::  Root always shows browser even if empty
-    [/text/html (manx-to-octs:server (ball-browser ball ball-path %.y))]
+    [/text/html (manx-to-octs:server (ball-browser ball ball-path bowl conversions %.y))]
   =/  parent=path  (snip `path`ball-path)
   =/  filename=@ta  (rear ball-path)
   =/  content-data=(unit content:tarball)  (~(get ba:tarball ball) parent filename)
   ?~  content-data
     [/text/plain (as-octs:mimes:html 'file not found')]
-  ?>  ?=([%file *] u.content-data)
-  mime.u.content-data
+  ?-  -.u.content-data
+    %file  mime.u.content-data
+    %cage
+      (~(cage-to-mime gen:tarball [bowl conversions]) cage.u.content-data)
+    %symlink  [/text/plain (as-octs:mimes:html 'symlink')]
+  ==
 ::  Render ball file browser UI
 ::
 ++  ball-browser
-  |=  [g=ball:tarball pax=path write=?]
+  |=  [g=ball:tarball pax=path =bowl:gall conversions=(map mars:clay tube:clay) write=?]
   ^-  manx
   =/  path-display=tape
     ?~  pax  "/"
@@ -277,6 +286,33 @@
               ;td: {modified-display}
               ;td
                 ;form(method "POST", action upload-path, style "display: inline;")
+                  ;input(type "hidden", name "action", value "delete-file");
+                  ;input(type "hidden", name "filename", value (trip filename));
+                  ;button(type "submit", onclick "return confirm('Delete {(trip filename)}?')"): Delete
+                ==
+              ==
+            ==
+              %cage
+            ::  Convert cage to mime for display
+            =/  =mime  (~(cage-to-mime gen:tarball [bowl conversions]) cage.content-data)
+            =/  size=@ud  p.q.mime
+            =/  mime-raw=tape  (trip (spat p.mime))
+            =/  mime-display=tape  ?~(mime-raw "" (tail mime-raw))
+            =/  file-url=tape  "/master/ball{path-prefix}/{(trip filename)}"
+            ;tr
+              ;td
+                ;a/"{file-url}"
+                  ; {(trip filename)}
+                ==
+              ==
+              ;td: {mime-display}
+              ;td: {(scow %ud size)} bytes
+              ;td: {modified-display}
+              ;td
+                ;a/"{file-url}"(download "")
+                  ;button(type "button"): Download
+                ==
+                ;form(method "POST", action upload-path, style "display: inline; margin-left: 5px;")
                   ;input(type "hidden", name "action", value "delete-file");
                   ;input(type "hidden", name "filename", value (trip filename));
                   ;button(type "submit", onclick "return confirm('Delete {(trip filename)}?')"): Delete

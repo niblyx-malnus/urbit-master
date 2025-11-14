@@ -1,5 +1,5 @@
 /-  *master
-/+  io=sailboxio, sailbox, server, ui-master, html-utils, tarball
+/+  io=sailboxio, sailbox, server, ui-master, ui-ball, html-utils, tarball, multipart
 /=  claude-routes  /lib/routes/claude
 /=  s3-routes  /lib/routes/s3
 /=  telegram-routes  /lib/routes/telegram
@@ -11,8 +11,8 @@
 ::
 ++  get-claude-creds
   |=  =ball:tarball
-  ^-  claude-creds
-  (~(get-cage-as ba:tarball ball) / 'claude-creds.json' claude-creds)
+  ^-  (unit claude-creds)
+  (~(get-cage-as ba:tarball ball) /config/creds 'claude.json' claude-creds)
 ::  GET request router
 ::
 ++  handle-get-request
@@ -22,15 +22,13 @@
       ==
   =/  m  (fiber:io ,~)
   ^-  form:m
-  =/  user-timezone=@t  (~(get-cage-as ba:tarball ball.state) / 'user-timezone.txt' @t)
+  =/  user-timezone=@t  (fall (~(get-cage-as ba:tarball ball.state) /config 'timezone.txt' @t) 'UTC')
   =/  lin=request-line:server  (parse-request-line:server url.request.req)
-  =/  site=(list @t)  site.lin
-  =/  args=(list [key=@t value=@t])  args.lin
   ::  Check authentication
   ?.  =(our src):bowl
-    (give-simple-payload:io (login-redirect:sailbox [ext site]:lin args))
+    (give-simple-payload:io (login-redirect:sailbox [ext site]:lin args.lin))
   ::  Route all GET requests
-  ?+    site  ~|(%unrecognized-get !!)
+  ?+    site.lin  ~|(%unrecognized-get !!)
       [%master ~]
     =/  =simple-payload:http
       (mime-response:sailbox [/text/html (manx-to-octs:server home-page:ui-master)])
@@ -48,13 +46,27 @@
     (handle-get-new:claude-routes ~)
   ::
       [%master %claude @ ~]
-    =/  chat-id=@ux  (rash i.t.t.site hex)
-    =/  creds=claude-creds  (get-claude-creds ball.state)
+    =/  chat-id=@ux  (rash i.t.t.site.lin hex)
+    =/  creds=(unit claude-creds)  (get-claude-creds ball.state)
     (handle-get-chat:claude-routes chat-id user-timezone creds)
   ::
       [%master %claude @ %messages ~]
-    =/  chat-id=@ux  (rash i.t.t.site hex)
-    (handle-get-messages:claude-routes chat-id args user-timezone)
+    =/  chat-id=@ux  (rash i.t.t.site.lin hex)
+    (handle-get-messages:claude-routes chat-id args.lin user-timezone)
+  ::
+      [%master %ball ~]
+    =/  conversions=(map mars:clay tube:clay)  ~
+    =/  =simple-payload:http
+      (mime-response:sailbox (handle-ball-get:ui-ball ball.state bowl conversions ~ [ext args]:lin))
+    (give-simple-payload:io simple-payload)
+  ::
+      [%master %ball *]
+    =/  conversions=(map mars:clay tube:clay)  ~
+    =/  ball-path=(list @t)  t.t.site.lin
+    =/  =simple-payload:http
+      %-  mime-response:sailbox
+      (handle-ball-get:ui-ball ball.state bowl conversions t.t.site.lin [ext args]:lin)
+    (give-simple-payload:io simple-payload)
   ==
 ::
 ::  JSON POST request router
@@ -71,6 +83,55 @@
     (handle-request:mcp-routes req)
   ==
 ::
+::  Multipart POST request router (file uploads)
+::
+++  handle-multipart-request
+  |=  $:  req=inbound-request:eyre
+          site=(list @t)
+          state=state-0
+      ==
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ?+    site  !!
+      [%master %ball ~]
+    ::  Parse multipart data
+    =/  parts=(unit (list [@t part:multipart]))
+      (de-request:multipart header-list.request.req body.request.req)
+    ?~  parts
+      (give-simple-payload:io [[400 ~] `(as-octs:mimes:html 'Invalid multipart data')])
+    ;<  =bowl:gall  bind:m  get-bowl:io
+    ::  Get conversions for file type detection
+    =/  conversions=(map mars:clay tube:clay)  ~
+    ::  Update ball with uploaded files
+    =/  new-ball=ball:tarball
+      (from-parts:tarball ball.state ~ u.parts now.bowl conversions)
+    =.  ball.state  new-ball
+    ;<  state=state-0  bind:m  (get-state-as:io state-0)
+    =.  ball.state  new-ball
+    ;<  ~  bind:m  (replace:io !>(state))
+    (give-simple-payload:io [[303 ~[['location' '/master/ball']]] ~])
+  ::
+      [%master %ball *]
+    ::  Parse multipart data
+    =/  parts=(unit (list [@t part:multipart]))
+      (de-request:multipart header-list.request.req body.request.req)
+    ?~  parts
+      (give-simple-payload:io [[400 ~] `(as-octs:mimes:html 'Invalid multipart data')])
+    ;<  =bowl:gall  bind:m  get-bowl:io
+    =/  ball-path=path  t.t.site
+    =/  conversions=(map mars:clay tube:clay)  ~
+    ::  Update ball with uploaded files
+    =/  new-ball=ball:tarball
+      (from-parts:tarball ball.state ball-path u.parts now.bowl conversions)
+    =.  ball.state  new-ball
+    ;<  state=state-0  bind:m  (get-state-as:io state-0)
+    =.  ball.state  new-ball
+    ;<  ~  bind:m  (replace:io !>(state))
+    =/  redirect-url=tape
+      (weld "/master/ball" (trip (spat ball-path)))
+    (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
+  ==
+::
 ::  Form-encoded POST request router
 ::
 ++  handle-form-request
@@ -80,7 +141,7 @@
       ==
   =/  m  (fiber:io ,~)
   ^-  form:m
-  =/  user-timezone=@t  (~(get-cage-as ba:tarball ball.state) / 'user-timezone.txt' @t)
+  =/  user-timezone=@t  (fall (~(get-cage-as ba:tarball ball.state) /config 'timezone.txt' @t) 'UTC')
   =/  args=key-value-list:kv  (parse-body:kv body.request.req)
   ?+    site  !!
       [%master %test-sse ~]
@@ -105,7 +166,8 @@
       [%master %set-timezone ~]
     =/  timezone=@t  (need (get-key:kv 'timezone' args))
     ;<  state=state-0  bind:m  (get-state-as:io state-0)
-    =.  ball.state  (~(put ba:tarball ball.state) / 'user-timezone.txt' [%cage ~ [%txt !>(timezone)]])
+    ;<  =bowl:gall  bind:m  get-bowl:io
+    =.  ball.state  (~(put ba:tarball ball.state) /config 'timezone.txt' (make-cage:tarball [%txt !>(timezone)] now.bowl))
     ;<  ~  bind:m  (replace:io !>(state))
     (give-simple-payload:io [[200 ~] ~])
   ::
@@ -162,12 +224,14 @@
     =/  chat-id=@ux  (rash i.t.t.site hex)
     =/  message=@t  (need (get-key:kv 'message' args))
     ;<  state=state-0  bind:m  (get-state-as:io state-0)
-    =/  creds=claude-creds  (get-claude-creds ball.state)
+    =/  creds=(unit claude-creds)  (get-claude-creds ball.state)
+    ?~  creds
+      (fiber-fail:io leaf+"Claude credentials not configured" ~)
     %:  handle-message:claude-routes
       chat-id
       message
-      api-key.creds
-      ai-model.creds
+      api-key.u.creds
+      ai-model.u.creds
       user-timezone
     ==
   ::
@@ -175,5 +239,58 @@
     =/  parent-chat-id=@ux  (rash i.t.t.site hex)
     =/  branch-point=@ud  (rash (need (get-key:kv 'branch-point' args)) dem)
     (handle-branch:claude-routes parent-chat-id branch-point)
+  ::
+      [%master %ball ~]
+    ::  Handle ball actions at root
+    =/  action=@t  (need (get-key:kv 'action' args))
+    ?+    action  (give-simple-payload:io [[400 ~] `(as-octs:mimes:html 'Unknown action')])
+        %'create-folder'
+      ;<  =bowl:gall  bind:m  get-bowl:io
+      =/  foldername=@ta  (rash (need (get-key:kv 'foldername' args)) sym)
+      =.  ball.state  (make-dir:tarball ball.state /[foldername] now.bowl)
+      ;<  state=state-0  bind:m  (get-state-as:io state-0)
+      ;<  ~  bind:m  (replace:io !>(state))
+      (give-simple-payload:io [[303 ~[['location' '/master/ball']]] ~])
+    ==
+  ::
+      [%master %ball *]
+    ::  Handle ball actions in subdirectories
+    ;<  =bowl:gall  bind:m  get-bowl:io
+    =/  ball-path=path  t.t.site
+    =/  action=@t  (need (get-key:kv 'action' args))
+    =/  redirect-url=tape  (weld "/master/ball" (trip (spat ball-path)))
+    ?+    action  (give-simple-payload:io [[400 ~] `(as-octs:mimes:html 'Unknown action')])
+        %'create-folder'
+      =/  foldername=@ta  (rash (need (get-key:kv 'foldername' args)) sym)
+      =/  dir-path=path  (snoc ball-path foldername)
+      =.  ball.state  (make-dir:tarball ball.state dir-path now.bowl)
+      ;<  state=state-0  bind:m  (get-state-as:io state-0)
+      ;<  ~  bind:m  (replace:io !>(state))
+      (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
+    ::
+        %'create-symlink'
+      =/  linkname=@ta  (rash (need (get-key:kv 'linkname' args)) sym)
+      =/  target=@t  (need (get-key:kv 'target' args))
+      =/  road=road:tarball  (need (parse-road:tarball target))
+      =.  ball.state  (~(put ba:tarball ball.state) ball-path linkname (make-symlink:tarball road now.bowl))
+      ;<  state=state-0  bind:m  (get-state-as:io state-0)
+      ;<  ~  bind:m  (replace:io !>(state))
+      (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
+    ::
+        %'delete-file'
+      =/  filename=@ta  (rash (need (get-key:kv 'filename' args)) sym)
+      =.  ball.state  (~(del ba:tarball ball.state) ball-path filename)
+      ;<  state=state-0  bind:m  (get-state-as:io state-0)
+      ;<  ~  bind:m  (replace:io !>(state))
+      (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
+    ::
+        %'delete-folder'
+      =/  foldername=@ta  (rash (need (get-key:kv 'foldername' args)) sym)
+      ::  Delete the directory using tarball API
+      =.  ball.state  (~(del ba:tarball ball.state) ball-path foldername)
+      ;<  state=state-0  bind:m  (get-state-as:io state-0)
+      ;<  ~  bind:m  (replace:io !>(state))
+      (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
+    ==
   ==
 --

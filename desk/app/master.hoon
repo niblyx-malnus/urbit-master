@@ -1,7 +1,7 @@
 /-  *master
 /+  dbug, sailbox, io=sailboxio, server,
-    ui-master, ui-claude, telegram,
-    sse=sse-helpers, migrate-master
+    ui-master, ui-claude, ui-ball, telegram,
+    sse=sse-helpers, tarball
 /=  master-routes  /lib/routes/master
 /=  telegram-routes  /lib/routes/telegram
 /=  s3-routes  /lib/routes/s3
@@ -23,21 +23,12 @@
   =.  bindings.state  (sy ~[[~ /master]])
   =.  telegram-alarms.state  ~
   =.  processes.state  [commits=~]
-  ::  Initialize ball
-  =.  ball.state
-    =/  b=ball:tarball  (set-ball-version:migrate-master ball.state 0)
-    =.  b  (~(put ba:tarball b) / 'user-timezone.txt' [%cage ~ [%txt !>('UTC')]])
-    =.  b  (~(put ba:tarball b) / 'telegram-creds.json' [%cage ~ [%json !>(initial-creds:telegram-routes)]])
-    =.  b  (~(put ba:tarball b) / 's3-creds.json' [%cage ~ [%json !>(initial-creds:s3-routes)]])
-    =.  b  (~(put ba:tarball b) / 'claude-creds.json' [%cage ~ [%json !>(initial-creds:claude-routes)]])
-    (~(put ba:tarball b) / 'brave-search-creds.json' [%cage ~ [%json !>(initial-creds:brave-routes)]])
   !>(state)
 ::
 ++  migrate
   |=  old=vase
   ^-  vase
   =+  !<(=state-0 old)
-  =.  ball.state-0  (migrate-ball:migrate-master ball.state-0)
   !>(state-0)
 ::
 ++  on-peek
@@ -64,14 +55,31 @@
     ::
       %on-init :: sent by sailbox
     ;<  state=state-0  bind:m  (get-state-as:io state-0)
+    ;<  =bowl:gall  bind:m  get-bowl:io
+    ::  Create /config and /config/creds directories
+    =.  ball.state  (make-dir:tarball ball.state /config now.bowl)
+    =.  ball.state  (make-dir:tarball ball.state /config/creds now.bowl)
+    ::  Set default timezone to UTC
+    =.  ball.state  (~(put ba:tarball ball.state) /config 'timezone.txt' (make-cage:tarball [%txt !>('UTC')] now.bowl))
+    ;<  ~  bind:m  (replace:io !>(state))
     ;<  ~  bind:m  (set-bindings:io ~(tap in bindings.state))
     ::  Restart all pending telegram alarms
     (restart-alarms:telegram telegram-alarms.state)
     ::
       %on-load :: sent by sailbox
     ;<  state=state-0  bind:m  (get-state-as:io state-0)
-    ::  Always migrate ball on load
-    =.  ball.state  (migrate-ball:migrate-master ball.state)
+    ;<  =bowl:gall  bind:m  get-bowl:io
+    ::  Create /config and /config/creds directories if they don't exist
+    =/  config-exists=?  ?=(^ (~(dap ba:tarball ball.state) /config))
+    =?  ball.state  !config-exists
+      (make-dir:tarball ball.state /config now.bowl)
+    =/  creds-exists=?  ?=(^ (~(dap ba:tarball ball.state) /config/creds))
+    =?  ball.state  !creds-exists
+      (make-dir:tarball ball.state /config/creds now.bowl)
+    ::  Set default timezone to UTC if not configured
+    =/  timezone-exists=?  (~(has ba:tarball ball.state) /config 'timezone.txt')
+    =?  ball.state  !timezone-exists
+      (~(put ba:tarball ball.state) /config 'timezone.txt' (make-cage:tarball [%txt !>('UTC')] now.bowl))
     ;<  ~  bind:m  (replace:io !>(state))
     ;<  ~  bind:m  (set-bindings:io ~(tap in bindings.state))
     ::  Restart all pending telegram alarms
@@ -103,6 +111,11 @@
     ::  Route JSON POSTs
     ?:  ?=([~ %'application/json'] content-type)
       (handle-json-request:master-routes req site)
+    ::  Route multipart POSTs (file uploads)
+    ?:  ?&  ?=(^ content-type)
+            =('multipart/form-data; boundary=' (end 3^30 u.content-type))
+        ==
+      (handle-multipart-request:master-routes req site state)
     ::  Route form-encoded POSTs
     (handle-form-request:master-routes req site state)
   ==

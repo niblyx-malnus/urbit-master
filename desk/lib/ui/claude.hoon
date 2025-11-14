@@ -21,7 +21,8 @@
       ==
   ^-  wain
   =/  state-data=state-0  !<(state-0 state)
-  =/  user-timezone=@t  (~(get-cage-as ba:tarball ball.state-data) / 'user-timezone.txt' @t)
+  =/  user-timezone=@t
+    (fall (~(get-cage-as ba:tarball ball.state-data) /config 'timezone.txt' @t) 'UTC')
   ~&  >  "handle-claude-sse called for chat {(hexn:sailbox chat-id)} with event {<event>}"
   =/  chat=(unit claude-chat)  (~(get by claude-chats.state-data) chat-id)
   ?~  chat

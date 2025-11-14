@@ -1,14 +1,6 @@
 /-  *master
 /+  io=sailboxio, telegram, tarball
 |%
-::  Initial telegram credentials
-::
-++  initial-creds
-  ^-  telegram-creds
-  :*  bot-token='your-bot-token'
-      chat-id='your-chat-id'
-  ==
-::
 ::  POST /master/telegram - Send telegram message
 ::
 ++  handle-send-message
@@ -16,12 +8,14 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  creds=telegram-creds
-    (~(get-cage-as ba:tarball ball.state) / 'telegram-creds.json' telegram-creds)
+  =/  creds=(unit telegram-creds)
+    (~(get-cage-as ba:tarball ball.state) /config/creds 'telegram.json' telegram-creds)
+  ?~  creds
+    (fiber-fail:io leaf+"Telegram credentials not configured" ~)
   ;<  ~  bind:m
     %:  send-message:telegram
-      bot-token.creds
-      chat-id.creds
+      bot-token.u.creds
+      chat-id.u.creds
       message
     ==
   (pure:m ~)
@@ -33,10 +27,10 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  =bowl:gall  bind:m  get-bowl:io
   =/  creds=telegram-creds  [bot-token chat-id]
-  =/  new-ball=ball:tarball
-    (~(put ba:tarball ball.state) / 'telegram-creds.json' [%cage ~ [%json !>(creds)]])
-  =.  ball.state  new-ball
+  =.  ball.state
+    (~(put ba:tarball ball.state) /config/creds 'telegram.json' (make-cage:tarball [%json !>(creds)] now.bowl))
   ;<  ~  bind:m  (replace:io !>(state))
   (pure:m ~)
 ::
@@ -54,13 +48,15 @@
   ~&  >  "wake time reached, sending telegram..."
   ::  Get current state to access telegram creds
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  creds=telegram-creds
-    (~(get-cage-as ba:tarball ball.state) / 'telegram-creds.json' telegram-creds)
+  =/  creds=(unit telegram-creds)
+    (~(get-cage-as ba:tarball ball.state) /config/creds 'telegram.json' telegram-creds)
+  ?~  creds
+    (fiber-fail:io leaf+"Telegram credentials not configured" ~)
   ::  Send telegram
   ;<  ~  bind:m
     %:  send-message:telegram
-      bot-token.creds
-      chat-id.creds
+      bot-token.u.creds
+      chat-id.u.creds
       message.telegram-alarm
     ==
   ::  Remove alarm from state after sending
