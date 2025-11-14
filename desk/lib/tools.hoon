@@ -537,6 +537,14 @@
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
   (pure:m (~(got by commits.processes.state) pid))
 ::
+++  cleanup-commit-state
+  |=  pid=@ta
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  =.  commits.processes.state  (~(del by commits.processes.state) pid)
+  (replace:io !>(state))
+::
 ++  init-commit-state
   |=  [mount-point=@tas pid=@ta]
   =/  m  (fiber:io ,~)
@@ -638,6 +646,7 @@
   ;<  cs=commit-state  bind:m  (get-commit-state pid)
   ;<  final-version=cass:clay  bind:m  (scry:io cass:clay %cw mount-point ~)
   =/  initial-version=cass:clay  (need initial-version.cs)
+  ;<  ~  bind:m  (cleanup-commit-state pid)
   (pure:m %text (crip (format-commit-result initial-version final-version (flop logs.cs))))
 ::
 ++  tool-desk-version
