@@ -703,6 +703,20 @@
     (pure:m ~)
   ?>  =(%dais p.r.u.riot)
   (pure:m `!<(dais:clay q.r.u.riot))
+::  +try-build-dais: build a mark dais, trying our desk first then %base
+::
+++  try-build-dais
+  |=  mak=mark
+  =/  m  (fiber ,(unit dais:clay))
+  ^-  form:m
+  ;<  our=@p  bind:m  get-our
+  ;<  =desk  bind:m  get-desk
+  ;<  now=@da  bind:m  get-time
+  ;<  dais=(unit dais:clay)  bind:m
+    (build-mark-soft [our desk [%da now]] mak)
+  ?^  dais
+    (pure:m dais)
+  (build-mark-soft [our %base [%da now]] mak)
 ::  +build-tube: build a mark conversion gate ($tube)
 ::
 ++  build-tube
@@ -868,4 +882,33 @@
     ==
   =/  content=content:tarball  [%symlink meta road]
   (pure:m (~(put ba:tarball b) pax name content))
+::  +diff-file: compute diff between two versions of a file
+::
+++  diff-file
+  |=  [b=ball:tarball pax=path name=@ta mak=mark old=vase new=vase]
+  =/  m  (fiber ,vase)
+  ^-  form:m
+  ;<  dais=(unit dais:clay)  bind:m  (try-build-dais mak)
+  ?~  dais
+    (fiber-fail leaf+"mark {<mak>} not found" ~)
+  (pure:m (~(diff u.dais old) new))
+::  +patch-file: apply a diff to a file in the ball
+::
+++  patch-file
+  |=  [b=ball:tarball pax=path name=@ta diff=vase]
+  =/  m  (fiber ,ball:tarball)
+  ^-  form:m
+  ::  Get current file to determine its mark
+  =/  ba  (~(das ba:tarball b) ~)
+  =/  current=(unit content:tarball)  (get:ba pax name)
+  ?~  current
+    (fiber-fail leaf+"file not found: {<pax>}/{<name>}" ~)
+  ?.  ?=(%cage -.u.current)
+    (fiber-fail leaf+"file is not a cage: {<pax>}/{<name>}" ~)
+  ::  Build dais for the mark (try our desk, then %base)
+  ;<  dais=(unit dais:clay)  bind:m  (try-build-dais p.cage.u.current)
+  ?~  dais
+    (fiber-fail leaf+"mark {<p.cage.u.current>} not found" ~)
+  ::  Apply patch using tarball
+  (pure:m (patch-cage:ba pax name diff u.dais))
 --

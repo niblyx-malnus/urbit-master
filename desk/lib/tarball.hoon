@@ -5,6 +5,9 @@
 +$  metadata  (map @t @t)
 +$  bend  (pair @ud path)      :: relative path
 +$  road  (each path bend)     :: absolute or relative path
+:: TODO: Consider refactoring to
+:: +$  content  [=metadata data=$%([%road =road] [%cage =cage])]
+::
 +$  content
   $%  [%file =metadata =mime]
       [%symlink =metadata =road]
@@ -500,6 +503,19 @@
     ?~  kid=(~(get by dir.b) i.pax)
       ~
     $(b u.kid, pax t.pax)
+  ::  Apply diff to a cage file in the ball using mark's ++pact
+  ::
+  ++  patch-cage
+    |=  [pax=path name=@ta diff=vase dais=dais:clay]
+    ^-  ball
+    =/  current=(unit content)  (get pax name)
+    ?~  current
+      ~|  [%file-not-found pax name]  !!
+    ?.  ?=(%cage -.u.current)
+      ~|  [%not-a-cage pax name]  !!
+    =/  new-vase  (~(pact dais q.cage.u.current) diff)
+    ::  Preserve metadata, update vase
+    (put pax name [%cage metadata.u.current [p.cage.u.current new-vase]])
   --
 ::  Tarball encoding utilities
 ::

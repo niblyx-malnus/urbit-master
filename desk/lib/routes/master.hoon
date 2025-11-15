@@ -46,34 +46,21 @@
   ?^  tube
     (pure:m tube)
   (build-tube-soft:io [our %base case] mars)
-::  Helper to build a single dais, trying our desk first then %base
+::  Note: try-build-dais moved to sailboxio.hoon for reusability
 ::
-++  try-build-dais
-  |=  [our=@p =desk =case =mark]
-  =/  m  (fiber:io ,(unit dais:clay))
-  ^-  form:m
-  ;<  dais=(unit dais:clay)  bind:m
-    (build-mark-soft:io [our desk case] mark)
-  ?^  dais
-    (pure:m dais)
-  (build-mark-soft:io [our %base case] mark)
 ::  Helper to build mark dais map for all marks in a ball
 ::
 ++  get-mark-dais
   |=  =ball:tarball
   =/  m  (fiber:io ,(map mark dais:clay))
   ^-  form:m
-  ;<  our=@p  bind:m  get-our:io
-  ;<  =desk  bind:m  get-desk:io
-  ;<  now=@da  bind:m  get-time:io
-  =/  =case  [%da now]
   =/  marks=(list mark)  ~(tap in (collect-marks ball))
   =/  dais-map=(map mark dais:clay)  ~
   |-  ^-  form:m
   ?~  marks
     (pure:m dais-map)
   ;<  dais-result=(unit dais:clay)  bind:m
-    (try-build-dais our desk case i.marks)
+    (try-build-dais:io i.marks)
   =?  dais-map  ?=(^ dais-result)
     (~(put by dais-map) i.marks u.dais-result)
   $(marks t.marks)
@@ -268,6 +255,37 @@
       [%master %telegram ~]
     =/  message=@t  (need (get-key:kv 'message' args))
     (handle-send-message:telegram-routes message)
+  ::
+      [%master %test-diff ~]
+    ;<  state=state-0  bind:m  (get-state-as:io state-0)
+    ::  Create original version
+    =/  old-text=wain  ~['line 1' 'line 2' 'line 3']
+    ;<  new-ball=ball:tarball  bind:m
+      (put-cage:io ball.state /state 'test.txt' [%txt !>(old-text)])
+    =.  ball.state  new-ball
+    ::  Create new version
+    =/  new-text=wain  ~['line 1' 'line 2 MODIFIED' 'line 3' 'line 4 ADDED']
+    ::  Compute diff
+    ;<  diff=vase  bind:m
+      (diff-file:io ball.state /state 'test.txt' %txt !>(old-text) !>(new-text))
+    ::  Apply patch
+    ;<  updated-ball=ball:tarball  bind:m
+      (patch-file:io ball.state /state 'test.txt' diff)
+    =.  ball.state  updated-ball
+    ::  Read result
+    =/  result=wain  (~(got-cage-as ba:tarball ball.state) /state 'test.txt' wain)
+    ;<  ~  bind:m  (replace:io !>(state))
+    ::  Return success with result
+    =/  response=tape
+      """
+      Diff/Patch Test Success!
+
+      Original: [{(trip (of-wain:format old-text))}]
+      Expected: [{(trip (of-wain:format new-text))}]
+      Result:   [{(trip (of-wain:format result))}]
+      Match: {?:(=(new-text result) "YES" "NO")}
+      """
+    (give-simple-payload:io [[200 ~] `(as-octs:mimes:html (crip response))])
   ::
       [%master %set-timezone ~]
     =/  timezone=@t  (need (get-key:kv 'timezone' args))
