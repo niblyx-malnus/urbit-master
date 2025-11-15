@@ -246,14 +246,21 @@
       [%master %test-sse ~]
     =.  io  io(hold &) :: claim the mutex
     ;<  state=state-0  bind:m  (get-state-as:io state-0)
-    =.  state  state(counter 0)
+    ::  Initialize counter to 0 in ball
+    ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /state 'counter.ud' [%ud !>(0)])
+    =.  ball.state  new-ball
     ;<  ~  bind:m  (replace:io !>(state))
     ;<  ~  bind:m  (send-sse-event:io /master/test-sse ~ `'/test/counter')
     |-
     ;<  state=state-0  bind:m  (get-state-as:io state-0)
-    ?:  (gte counter.state 5)
+    ::  Read counter from ball
+    =/  counter=@ud  (~(got-cage-as ba:tarball ball.state) /state 'counter.ud' @ud)
+    ?:  (gte counter 5)
       (give-simple-payload:io [[200 ~] ~])
-    ;<  ~  bind:m  (replace:io !>(state(counter +(counter.state))))
+    ::  Increment counter in ball
+    ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /state 'counter.ud' [%ud !>(+(counter))])
+    =.  ball.state  new-ball
+    ;<  ~  bind:m  (replace:io !>(state))
     ;<  ~  bind:m  (send-sse-event:io /master/test-sse ~ `'/test/counter')
     ;<  ~  bind:m  (sleep:io ~s1)
     $

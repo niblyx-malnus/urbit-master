@@ -69,7 +69,6 @@
 ::
 +$  state-0
   $:  %0
-      counter=@ud
       bindings=(set binding:eyre)
       =ball:tarball
       active-chat=(unit @ux)

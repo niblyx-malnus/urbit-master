@@ -64,6 +64,11 @@
     ::  Set default timezone to UTC with correct type (wain)
     ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /config 'timezone.txt' [%txt !>(~['UTC'])])
     =.  ball.state  new-ball
+    ::  Create /state directory and initialize counter
+    ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /state)
+    =.  ball.state  new-ball
+    ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /state 'counter.ud' [%ud !>(0)])
+    =.  ball.state  new-ball
     ;<  ~  bind:m  (replace:io !>(state))
     ;<  ~  bind:m  (set-bindings:io ~(tap in bindings.state))
     ::  Restart all pending telegram alarms

@@ -44,10 +44,12 @@
           event=(unit @t)
       ==
   ^-  wain
-  =+  !<(state-0 state)
+  =/  s  !<(state-0 state)
   ~&  >  "handle-simple-sse called with event {<event>}"
   ?+    event  !!
       [~ %'/test/counter']
+    ::  Read counter from ball
+    =/  counter=@ud  (~(got-cage-as ba:tarball ball.s) /state 'counter.ud' @ud)
     ~&  >  "Returning counter value: {<counter>}"
     %-  manx-to-wain:sailbox
     ;div: Count: {(scow %ud counter)}
