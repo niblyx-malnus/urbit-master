@@ -22,7 +22,6 @@
   =|  state=state-0
   =.  bindings.state  (sy ~[[~ /master]])
   =.  telegram-alarms.state  ~
-  =.  processes.state  [commits=~]
   !>(state)
 ::
 ++  migrate
@@ -68,6 +67,11 @@
     ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /state)
     =.  ball.state  new-ball
     ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /state 'counter.ud' [%ud !>(0)])
+    =.  ball.state  new-ball
+    ::  Create /processes/commits directory
+    ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /processes)
+    =.  ball.state  new-ball
+    ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /processes/commits)
     =.  ball.state  new-ball
     ;<  ~  bind:m  (replace:io !>(state))
     ;<  ~  bind:m  (set-bindings:io ~(tap in bindings.state))

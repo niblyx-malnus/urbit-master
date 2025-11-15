@@ -57,16 +57,6 @@
       wake-time=@da
   ==
 ::
-+$  commit-state
-  $:  sent=?
-      initial-version=(unit cass:clay)
-      logs=(list told:dill)
-  ==
-::
-+$  processes
-  $:  commits=(map @ta commit-state)
-  ==
-::
 +$  state-0
   $:  %0
       bindings=(set binding:eyre)
@@ -74,6 +64,5 @@
       active-chat=(unit @ux)
       claude-chats=(map @ux claude-chat)
       telegram-alarms=(map @da telegram-alarm)
-      =processes
   ==
 --

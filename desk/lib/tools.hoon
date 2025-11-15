@@ -547,19 +547,62 @@
   ^-  form:m
   (send-raw-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl duration))
 ::
-++  get-commit-state
-  |=  pid=@ta
-  =/  m  (fiber:io ,commit-state)
-  ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  (pure:m (~(got by commits.processes.state) pid))
+++  format-told-to-text
+  |=  log=told:dill
+  ^-  tape
+  ?-  -.log
+      %crud
+    =/  err-lines=wall  (zing (turn (flop q.log) (cury wash [0 80])))
+    =/  lines-text=tape
+      %-  zing
+      %+  turn  err-lines
+      |=(line=tape "{line}\0a")
+    "ERROR [{<p.log>}]:\0a{lines-text}"
+      %talk
+    =/  talk-lines=wall  (zing (turn p.log (cury wash [0 80])))
+    %-  zing
+    %+  turn  talk-lines
+    |=(line=tape "{line}\0a")
+      %text
+    "{p.log}\0a"
+  ==
+::
+++  build-commit-json
+  |=  =cass:clay
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['sent' b+%.n]
+      :-  'initial-version'
+      %-  pairs:enjs:format
+      :~  ['ud' (numb:enjs:format ud.cass)]
+          ['da' s+(scot %da da.cass)]
+      ==
+      ['logs' a+~]
+  ==
+::
+++  parse-initial-version
+  |=  jon=json
+  ^-  cass:clay
+  =/  iv-json=json  (~(got jo:json-utils jon) /initial-version)
+  :*  (~(dog jo:json-utils iv-json) /ud ni:dejs:format)
+      (slav %da (~(dog jo:json-utils iv-json) /da so:dejs:format))
+  ==
+::
+++  append-log-to-commit
+  |=  [jon=json log-text=@t]
+  ^-  json
+  =/  logs=(list json)  (~(dog jo:json-utils jon) /logs (ar:dejs:format same:dejs:format))
+  (~(put jo:json-utils jon) /logs a+[s+log-text logs])
 ::
 ++  cleanup-commit-state
   |=  pid=@ta
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =.  commits.processes.state  (~(del by commits.processes.state) pid)
+  ::  Delete from ball
+  =/  ba  ~(. ba:tarball ball.state)
+  =/  new-ball=ball:tarball  (del:ba /processes/commits (crip "{(trip pid)}.json"))
+  =.  ball.state  new-ball
   (replace:io !>(state))
 ::
 ++  init-commit-state
@@ -567,10 +610,15 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  ?:  (~(has by commits.processes.state) pid)
+  ::  Check if already exists in ball
+  =/  ba  ~(. ba:tarball ball.state)
+  =/  existing=(unit content:tarball)  (get:ba /processes/commits (crip "{(trip pid)}.json"))
+  ?^  existing
     (pure:m ~)
-  ;<  ver=cass:clay  bind:m  (scry:io cass:clay %cw mount-point ~)
-  =.  commits.processes.state  (~(put by commits.processes.state) pid [sent=%.n initial-version=`ver logs=~])
+  ;<  =cass:clay  bind:m  (scry:io cass:clay %cw mount-point ~)
+  =/  jon=json  (build-commit-json cass)
+  ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /processes/commits (crip "{(trip pid)}.json") [%json !>(jon)])
+  =.  ball.state  new-ball
   (replace:io !>(state))
 ::
 ++  commit-desk
@@ -578,11 +626,15 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  pid=@ta  bind:m  get-pid:io
-  ;<  cs=commit-state  bind:m  (get-commit-state pid)
-  ?:  sent.cs
-    (pure:m ~)
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =.  commits.processes.state  (~(put by commits.processes.state) pid cs(sent %.y))
+  =/  jon=json
+    (~(got-cage-as ba:tarball ball.state) /processes/commits (crip "{(trip pid)}.json") json)
+  =/  sent=?  (~(dog jo:json-utils jon) /sent bo:dejs:format)
+  ?:  sent
+    (pure:m ~)
+  =/  updated-jon=json  (~(put jo:json-utils jon) /sent b+%.y)
+  ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /processes/commits (crip "{(trip pid)}.json") [%json !>(updated-jon)])
+  =.  ball.state  new-ball
   ;<  ~  bind:m  (replace:io !>(state))
   ;<  our=@p  bind:m  get-our:io
   (poke:io [our %hood] kiln-commit+!>([mount-point %.n]))
@@ -595,7 +647,10 @@
   ::  and directly emit timer cards for debouncing
   |=  input:fiber:sailbox
   =+  !<(=state-0 state)
-  =/  cs=commit-state  (~(got by commits.processes.state-0) pid)
+  ::  Read JSON from ball
+  =/  jon=json
+    (~(got-cage-as ba:tarball ball.state-0) /processes/commits (crip "{(trip pid)}.json") json)
+  =/  logs=(list json)  (~(dog jo:json-utils jon) /logs (ar:dejs:format same:dejs:format))
   ?+  in  [~ state %skip |]
       ~  [~ state %wait |]
       ::  Main timeout expired - we're done
@@ -607,44 +662,38 @@
       ::  Otherwise it's stale - another log arrived and spawned a newer timer
       [~ %arvo [%commit-quiet @ ~] %behn %wake *]
     =/  timer-counter=@ud  (slav %ud i.t.wire.u.in)
-    ?.  =(timer-counter (lent logs.cs))
+    ?.  =(timer-counter (lent logs))
       ::  Stale timer (more logs arrived), ignore it
       [~ state %skip |]
     ::  Current timer (no new logs for 1s), we're done
     [~ state %done ~]
       ::  Got a dill log - store it and spawn new quiet timer
       [~ %arvo [%dill-logs ~] %dill %logs *]
-    =/  new-logs=(list told:dill)  [told.sign.u.in logs.cs]
-    =.  commits.processes.state-0  (~(put by commits.processes.state-0) pid cs(logs new-logs))
+    ::  Render the told to text immediately
+    =/  log-text=tape  (format-told-to-text told.sign.u.in)
+    =/  updated-jon=json  (append-log-to-commit jon (crip log-text))
+    ::  Write back to ball using empty dais-map (same-mark update)
+    =/  ba  (~(das ba:tarball ball.state-0) ~)
+    =/  meta=metadata:tarball
+      %-  ~(gas by *(map @t @t))
+      :~  ['mtime' (da-oct:tarball now.bowl)]
+      ==
+    =/  new-ball=ball:tarball  (put:ba /processes/commits (crip "{(trip pid)}.json") [%cage meta [%json !>(updated-jon)]])
+    =.  ball.state-0  new-ball
+    ::  Get updated log count
+    =/  new-logs=(list json)  (~(dog jo:json-utils updated-jon) /logs (ar:dejs:format same:dejs:format))
     ::  Spawn quiet timer tagged with new log count
     =/  card  [%pass /commit-quiet/(scot %ud (lent new-logs)) %arvo %b %wait (add now.bowl ~s1)]
     [~[card] !>(state-0) %cont (collect-logs-until-timeout pid)]
   ==
 ::
-++  format-told
-  |=  log=told:dill
-  ^-  tape
-  ?-  -.log
-      %crud
-    =/  err-lines=wall  (zing (turn (flop q.log) (cury wash [0 80])))
-    ;:  weld
-      "ERROR [{<p.log>}]:\0a"
-      (roll err-lines |=([line=tape acc=tape] :(weld acc line "\0a")))
-    ==
-      %talk
-    =/  talk-lines=wall  (zing (turn p.log (cury wash [0 80])))
-    (roll talk-lines |=([line=tape acc=tape] :(weld acc line "\0a")))
-      %text
-    "{p.log}\0a"
-  ==
-::
 ++  format-commit-result
-  |=  [initial=cass:clay final=cass:clay logs=(list told:dill)]
+  |=  [initial=cass:clay final=cass:clay logs=(list @t)]
   ^-  tape
   %+  weld  "Initial version: {<ud.initial>}\0a"
   %+  weld  "Final version: {<ud.final>}\0a"
   %+  weld  "Logs ({<(lent logs)>}):\0a"
-  (roll logs |=([log=told:dill acc=tape] (weld acc (format-told log))))
+  (roll logs |=([log=@t acc=tape] (weld acc (trip log))))
 ::
 ++  tool-commit
   ^-  tool-handler
@@ -660,11 +709,15 @@
   ;<  ~  bind:m  (commit-desk mount-point)
   ;<  ~  bind:m  (collect-logs-until-timeout pid)
   ;<  ~  bind:m  unsubscribe-dill-logs
-  ;<  cs=commit-state  bind:m  (get-commit-state pid)
+  ::  Read final result from JSON
+  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  =/  jon=json
+    (~(got-cage-as ba:tarball ball.state) /processes/commits (crip "{(trip pid)}.json") json)
+  =/  initial-version=cass:clay  (parse-initial-version jon)
+  =/  log-texts=(list @t)  (~(dug jo:json-utils jon) /logs (ar:dejs:format so:dejs:format) ~)
   ;<  final-version=cass:clay  bind:m  (scry:io cass:clay %cw mount-point ~)
-  =/  initial-version=cass:clay  (need initial-version.cs)
   ;<  ~  bind:m  (cleanup-commit-state pid)
-  (pure:m %text (crip (format-commit-result initial-version final-version (flop logs.cs))))
+  (pure:m %text (crip (format-commit-result initial-version final-version (flop log-texts))))
 ::
 ++  tool-desk-version
   ^-  tool-handler
