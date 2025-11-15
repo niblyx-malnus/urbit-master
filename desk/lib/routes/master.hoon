@@ -385,17 +385,15 @@
       (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
     ::
         %'delete-file'
-      =/  filename=@ta  (rash (need (get-key:kv 'filename' args)) sym)
+      =/  filename=@t  (need (get-key:kv 'filename' args))
       =.  ball.state  (~(del ba:tarball ball.state) ball-path filename)
-      ;<  state=state-0  bind:m  (get-state-as:io state-0)
       ;<  ~  bind:m  (replace:io !>(state))
       (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
     ::
         %'delete-folder'
-      =/  foldername=@ta  (rash (need (get-key:kv 'foldername' args)) sym)
+      =/  foldername=@t  (need (get-key:kv 'foldername' args))
       ::  Delete the directory using tarball API
       =.  ball.state  (~(del ba:tarball ball.state) ball-path foldername)
-      ;<  state=state-0  bind:m  (get-state-as:io state-0)
       ;<  ~  bind:m  (replace:io !>(state))
       (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
     ==
