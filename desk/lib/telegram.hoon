@@ -1,6 +1,17 @@
 /-  *master
-/+  io=sailboxio, pytz
+/+  io=sailboxio, pytz, json-utils, tarball
 |%
+::  Build initial alarm JSON structure
+++  build-alarm-json
+  |=  [wake-time=@da message=@t created=@da]
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['wake-time' s+(scot %da wake-time)]
+      ['message' s+message]
+      ['created' s+(scot %da created)]
+      ['timer-set' b+%.n]
+  ==
+::
 ::  Parse ISO-8601 duration format (e.g. PT5M, PT2H30M, P1DT2H)
 ++  parse-duration
   |=  dur-str=@t
@@ -86,26 +97,99 @@
   ;<  =client-response:iris  bind:m  take-client-response:io
   (pure:m ~)
 ::
-++  restart-alarms
-  |=  alarms=(map @da telegram-alarm)
+::  Initialize alarm state - creates process file if it doesn't exist
+++  init-alarm-state
+  |=  [wake-time=@da message=@t]
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  =bowl:gall  bind:m  get-bowl:io
-  =/  alarms-list=(list [id=@da alarm=telegram-alarm])
-    ~(tap by alarms)
-  =|  idx=@ud
-  |-  ^-  form:m
-  ?~  alarms-list  (pure:m ~)
-  =/  [alarm-id=@da =telegram-alarm]  i.alarms-list
-  ::  Only restart if wake-time is in the future
-  ?:  (lth wake-time.telegram-alarm now.bowl)
-    ::  Alarm already passed, skip it
-    $(alarms-list t.alarms-list, idx +(idx))
-  ::  Fire-and-forget spawn alarm fiber
+  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ::  Check if already exists in ball
+  =/  ba  ~(. ba:tarball ball.state)
+  =/  filename=@ta  (crip "{(scow %da wake-time)}.json")
+  =/  existing=(unit content:tarball)  (get:ba /processes/alarms filename)
+  ?^  existing
+    (pure:m ~)
+  ::  Create initial alarm JSON
+  ;<  now=@da  bind:m  get-time:io
+  =/  jon=json  (build-alarm-json wake-time message now)
+  ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /processes/alarms filename [%json !>(jon)])
+  =.  ball.state  new-ball
+  (replace:io !>(state))
+::
+::
+::  Cleanup alarm state - delete process file
+++  cleanup-alarm-state
+  |=  wake-time=@da
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  =/  ba  ~(. ba:tarball ball.state)
+  =/  filename=@ta  (crip "{(scow %da wake-time)}.json")
+  =/  new-ball=ball:tarball  (del:ba /processes/alarms filename)
+  =.  ball.state  new-ball
+  (replace:io !>(state))
+::
+::  Run the alarm fiber - waits until wake time, sends, cleans up
+++  run-alarm
+  |=  [wake-time=@da message=@t]
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (init-alarm-state wake-time message)
+  ;<  ~  bind:m  (wait-for-alarm wake-time)
+  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  =/  creds=json
+    (~(got-cage-as ba:tarball ball.state) /config/creds 'telegram.json' json)
+  =/  bot-token=@t  (~(dog jo:json-utils creds) /bot-token so:dejs:format)
+  =/  chat-id=@t  (~(dog jo:json-utils creds) /chat-id so:dejs:format)
+  ;<  ~  bind:m  (send-message bot-token chat-id message)
+  ;<  ~  bind:m  (cleanup-alarm-state wake-time)
+  (pure:m ~)
+::
+::  Check if timer has been set for this alarm
+++  timer-already-set
+  |=  wake-time=@da
+  =/  m  (fiber:io ,?)
+  ^-  form:m
+  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  =/  filename=@ta  (crip "{(scow %da wake-time)}.json")
+  =/  jon=json
+    (~(got-cage-as ba:tarball ball.state) /processes/alarms filename json)
+  (pure:m (~(dog jo:json-utils jon) /timer-set bo:dejs:format))
+::
+::  Mark timer as set and send behn timer
+++  set-timer
+  |=  wake-time=@da
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  =/  filename=@ta  (crip "{(scow %da wake-time)}.json")
+  =/  jon=json
+    (~(got-cage-as ba:tarball ball.state) /processes/alarms filename json)
+  ::  Mark timer as set
+  =/  updated-jon=json  (~(put jo:json-utils jon) /timer-set b+%.y)
+  ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /processes/alarms filename [%json !>(updated-jon)])
+  =.  ball.state  new-ball
+  ;<  ~  bind:m  (replace:io !>(state))
+  ::  Send the timer card
+  (send-raw-card:io %pass /alarm-wake %arvo %b %wait wake-time)
+::
+::  Raw fiber continuation - wait for behn wake
+++  take-alarm-wake
+  |=  input:fiber:io
+  ?+  in  [~ state %skip |]
+    ~  [~ state %wait |]
+    [~ %arvo [%alarm-wake ~] %behn %wake *]  [~ state %done ~]
+  ==
+::
+::  Wait for alarm wake-time
+++  wait-for-alarm
+  |=  wake-time=@da
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ;<  already-set=?  bind:m  (timer-already-set wake-time)
   ;<  ~  bind:m
-    %:  fiber-throw:io
-      (crip "alarm-{(scow %ud idx)}")
-      spawn-alarm+!>([alarm-id telegram-alarm])
-    ==
-  $(alarms-list t.alarms-list, idx +(idx))
+    ?:  already-set
+      (pure:m ~)
+    (set-timer wake-time)
+  take-alarm-wake
 --

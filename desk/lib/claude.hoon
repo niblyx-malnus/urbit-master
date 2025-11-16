@@ -1,4 +1,4 @@
-/-  *master
+/-  *master, *claude
 /+  io=sailboxio, tools, chat-index, pytz, sailbox, time, iso-8601
 |%
 ::  Maximum characters for context window (as proxy for tokens)

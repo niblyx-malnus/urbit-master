@@ -838,7 +838,7 @@
     %-  ~(gas by *(map @t @t))
     :~  ['mtime' (da-oct:tarball now)]
     ==
-  =/  content=content:tarball  [%cage meta c]
+  =/  content=content:tarball  [meta %& c]
   (pure:m (put:ba pax name content))
 ::  +mkd: make a directory in a ball with timestamp
 ::
@@ -866,7 +866,7 @@
     :~  ['mtime' (da-oct:tarball now)]
         ['size' (scot %ud p.q.mime)]
     ==
-  =/  content=content:tarball  [%file meta mime]
+  =/  content=content:tarball  [meta %& [%mime !>(mime)]]
   (pure:m (~(put ba:tarball b) pax name content))
 ::  +put-symlink: put a symlink into a ball with timestamp
 ::
@@ -880,7 +880,7 @@
     %-  ~(gas by *(map @t @t))
     :~  ['mtime' (da-oct:tarball now)]
     ==
-  =/  content=content:tarball  [%symlink meta road]
+  =/  content=content:tarball  [meta %| road]
   (pure:m (~(put ba:tarball b) pax name content))
 ::  +diff-file: compute diff between two versions of a file
 ::
@@ -903,12 +903,12 @@
   =/  current=(unit content:tarball)  (get:ba pax name)
   ?~  current
     (fiber-fail leaf+"file not found: {<pax>}/{<name>}" ~)
-  ?.  ?=(%cage -.u.current)
+  ?.  ?=(%.y -.data.u.current)
     (fiber-fail leaf+"file is not a cage: {<pax>}/{<name>}" ~)
   ::  Build dais for the mark (try our desk, then %base)
-  ;<  dais=(unit dais:clay)  bind:m  (try-build-dais p.cage.u.current)
+  ;<  dais=(unit dais:clay)  bind:m  (try-build-dais p.p.data.u.current)
   ?~  dais
-    (fiber-fail leaf+"mark {<p.cage.u.current>} not found" ~)
+    (fiber-fail leaf+"mark {<p.p.data.u.current>} not found" ~)
   ::  Apply patch using tarball
   (pure:m (patch-cage:ba pax name diff u.dais))
 --

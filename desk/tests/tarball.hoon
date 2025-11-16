@@ -7,7 +7,7 @@
 ::
 ++  test-put-and-get
   =/  my-ball  *ball:tarball
-  =/  test-content=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
+  =/  test-content=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
   =/  updated  (~(put ba:tarball my-ball) /foo %test test-content)
   =/  result  (~(get ba:tarball updated) /foo %test)
   %+  expect-eq
@@ -23,7 +23,7 @@
 ::
 ++  test-has-exists
   =/  my-ball  *ball:tarball
-  =/  test-content=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
+  =/  test-content=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
   =/  updated  (~(put ba:tarball my-ball) /foo %test test-content)
   %-  expect
   !>  (~(has ba:tarball updated) /foo %test)
@@ -37,7 +37,7 @@
 ::
 ++  test-del
   =/  my-ball  *ball:tarball
-  =/  test-content=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
+  =/  test-content=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo %test test-content)
   =/  g2  (~(del ba:tarball g1) /foo %test)
   =/  result  (~(get ba:tarball g2) /foo %test)
@@ -47,8 +47,8 @@
 ::
 ++  test-lis
   =/  my-ball  *ball:tarball
-  =/  test1=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
-  =/  test2=content:tarball  [%file ~ [%text %html ~] [3 'bye']]
+  =/  test1=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
+  =/  test2=content:tarball  [~ [%& [%mime !>([/text/html [3 'bye']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo %test test1)
   =/  g2  (~(put ba:tarball g1) /foo %other test2)
   =/  files  (~(lis ba:tarball g2) /foo)
@@ -62,8 +62,8 @@
 ::
 ++  test-multiple-paths
   =/  my-ball  *ball:tarball
-  =/  content1=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
-  =/  content2=content:tarball  [%file ~ [%text %html ~] [3 'bye']]
+  =/  content1=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
+  =/  content2=content:tarball  [~ [%& [%mime !>([/text/html [3 'bye']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
   =/  g2  (~(put ba:tarball g1) /bar %other content2)
   ;:  weld
@@ -77,7 +77,7 @@
 ::
 ++  test-got
   =/  my-ball  *ball:tarball
-  =/  test-content=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
+  =/  test-content=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
   =/  updated  (~(put ba:tarball my-ball) /foo %test test-content)
   %+  expect-eq
     !>  test-content
@@ -90,7 +90,7 @@
 ::
 ++  test-gut
   =/  my-ball  *ball:tarball
-  =/  default=content:tarball  [%file ~ [%text %plain ~] [7 'default']]
+  =/  default=content:tarball  [~ [%& [%mime !>([/text/plain [7 'default']])]]]
   =/  result  (~(gut ba:tarball my-ball) /foo %test default)
   %+  expect-eq
     !>  default
@@ -98,8 +98,8 @@
 ::
 ++  test-wyt
   =/  my-ball  *ball:tarball
-  =/  content1=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
-  =/  content2=content:tarball  [%file ~ [%text %html ~] [3 'bye']]
+  =/  content1=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
+  =/  content2=content:tarball  [~ [%& [%mime !>([/text/html [3 'bye']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
   =/  g2  (~(put ba:tarball g1) /bar %other content2)
   %+  expect-eq
@@ -109,24 +109,24 @@
 ++  test-gas
   =/  my-ball  *ball:tarball
   =/  files=(list [path @ta content:tarball])
-    :~  [/foo %test [%file ~ [%text %plain ~] [5 'hello']]]
-        [/foo %other [%file ~ [%text %html ~] [3 'bye']]]
-        [/bar %thing [%file ~ [%text %css ~] [4 'hmm']]]
+    :~  [/foo %test [~ [%& [%mime !>([/text/plain [5 'hello']])]]]]
+        [/foo %other [~ [%& [%mime !>([/text/html [3 'bye']])]]]]
+        [/bar %thing [~ [%& [%mime !>([/text/css [4 'hmm']])]]]]
     ==
   =/  updated  (~(gas ba:tarball my-ball) files)
   ;:  weld
     %+  expect-eq
-      !>  `[%file ~ [%text %plain ~] [5 'hello']]
+      !>  `[~ [%& [%mime !>([/text/plain [5 'hello']])]]]
     !>  (~(get ba:tarball updated) /foo %test)
     %+  expect-eq
-      !>  `[%file ~ [%text %css ~] [4 'hmm']]
+      !>  `[~ [%& [%mime !>([/text/css [4 'hmm']])]]]
     !>  (~(get ba:tarball updated) /bar %thing)
   ==
 ::
 ++  test-tap
   =/  my-ball  *ball:tarball
-  =/  content1=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
-  =/  content2=content:tarball  [%file ~ [%text %html ~] [3 'bye']]
+  =/  content1=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
+  =/  content2=content:tarball  [~ [%& [%mime !>([/text/html [3 'bye']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
   =/  g2  (~(put ba:tarball g1) /foo %other content2)
   =/  result  ~(tap ba:tarball g2)
@@ -135,7 +135,7 @@
 ::
 ++  test-run
   =/  my-ball  *ball:tarball
-  =/  content1=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
+  =/  content1=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
   ::  Identity transform - run should preserve content
   =/  updated  (~(run ba:tarball g1) |=(c=content:tarball c))
@@ -146,8 +146,8 @@
 ::
 ++  test-rep
   =/  my-ball  *ball:tarball
-  =/  content1=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
-  =/  content2=content:tarball  [%file ~ [%text %html ~] [3 'bye']]
+  =/  content1=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
+  =/  content2=content:tarball  [~ [%& [%mime !>([/text/html [3 'bye']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
   =/  g2  (~(put ba:tarball g1) /bar %other content2)
   ::  Count all entries
@@ -158,18 +158,18 @@
 ::
 ++  test-all
   =/  my-ball  *ball:tarball
-  =/  content1=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
-  =/  content2=content:tarball  [%file ~ [%text %plain ~] [3 'bye']]
+  =/  content1=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
+  =/  content2=content:tarball  [~ [%& [%mime !>([/text/plain [3 'bye']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
   =/  g2  (~(put ba:tarball g1) /bar %other content2)
-  ::  Check all are %file
+  ::  Check all are %cage
   %-  expect
-  !>  (~(all ba:tarball g2) |=(c=content:tarball ?=([%file *] c)))
+  !>  (~(all ba:tarball g2) |=(c=content:tarball ?=([%& *] data.c)))
 ::
 ++  test-all-false
   =/  my-ball  *ball:tarball
-  =/  content1=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
-  =/  content2=content:tarball  [%file ~ [%text %html ~] [3 'bye']]
+  =/  content1=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
+  =/  content2=content:tarball  [~ [%& [%mime !>([/text/html [3 'bye']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
   =/  g2  (~(put ba:tarball g1) /bar %other content2)
   ::  Check if all match false predicate (should be false)
@@ -179,8 +179,8 @@
 ::
 ++  test-put-overwrite
   =/  my-ball  *ball:tarball
-  =/  content1=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
-  =/  content2=content:tarball  [%file ~ [%text %html ~] [3 'bye']]
+  =/  content1=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
+  =/  content2=content:tarball  [~ [%& [%mime !>([/text/html [3 'bye']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
   =/  g2  (~(put ba:tarball g1) /foo %test content2)
   =/  result  (~(get ba:tarball g2) /foo %test)
@@ -204,8 +204,8 @@
 ::
 ++  test-gut-exists
   =/  my-ball  *ball:tarball
-  =/  content=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
-  =/  default=content:tarball  [%file ~ [%text %html ~] [7 'default']]
+  =/  content=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
+  =/  default=content:tarball  [~ [%& [%mime !>([/text/html [7 'default']])]]]
   =/  updated  (~(put ba:tarball my-ball) /foo %test content)
   =/  result  (~(gut ba:tarball updated) /foo %test default)
   %+  expect-eq
@@ -260,8 +260,8 @@
 ::
 ++  test-any-none-match
   =/  my-ball  *ball:tarball
-  =/  content1=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
-  =/  content2=content:tarball  [%file ~ [%text %plain ~] [3 'bye']]
+  =/  content1=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
+  =/  content2=content:tarball  [~ [%& [%mime !>([/text/plain [3 'bye']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
   =/  g2  (~(put ba:tarball g1) /bar %other content2)
   ::  Check if any match false predicate (should be false)
@@ -271,7 +271,7 @@
 ::
 ++  test-lop-nonexistent
   =/  my-ball  *ball:tarball
-  =/  content=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
+  =/  content=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo/bar %test content)
   =/  result  (~(lop ba:tarball g1) /baz)
   ::  Should be no-op, file still exists
@@ -288,18 +288,18 @@
 ::
 ++  test-any
   =/  my-ball  *ball:tarball
-  =/  content1=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
-  =/  content2=content:tarball  [%file ~ [%text %html ~] [3 'bye']]
+  =/  content1=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
+  =/  content2=content:tarball  [~ [%& [%mime !>([/text/html [3 'bye']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo %test content1)
   =/  g2  (~(put ba:tarball g1) /bar %other content2)
-  ::  Check if any are %file
+  ::  Check if any are %cage
   %-  expect
-  !>  (~(any ba:tarball g2) |=(c=content:tarball ?=([%file *] c)))
+  !>  (~(any ba:tarball g2) |=(c=content:tarball ?=([%& *] data.c)))
 ::
 ++  test-lop
   =/  my-ball  *ball:tarball
-  =/  content1=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
-  =/  content2=content:tarball  [%file ~ [%text %html ~] [3 'bye']]
+  =/  content1=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
+  =/  content2=content:tarball  [~ [%& [%mime !>([/text/html [3 'bye']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo/bar %test content1)
   =/  g2  (~(put ba:tarball g1) /foo/bar %other content2)
   ::  Delete entire /foo subtree
@@ -310,8 +310,8 @@
 ::
 ++  test-dip
   =/  my-ball  *ball:tarball
-  =/  content1=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
-  =/  content2=content:tarball  [%file ~ [%text %html ~] [3 'bye']]
+  =/  content1=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
+  =/  content2=content:tarball  [~ [%& [%mime !>([/text/html [3 'bye']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo/bar %test content1)
   =/  g2  (~(put ba:tarball g1) /foo/bar %other content2)
   ::  Get directory at /foo/bar as a ball
@@ -354,7 +354,7 @@
 ++  test-dap-exists-with-files
   ::  Path exists when files are present
   =/  my-ball  *ball:tarball
-  =/  content=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
+  =/  content=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo/bar %test content)
   =/  dap-result  (~(dap ba:tarball g1) /foo/bar)
   =/  dip-result  (~(dip ba:tarball g1) /foo/bar)
@@ -370,7 +370,7 @@
 ++  test-dap-exists-after-delete
   ::  Path still exists after deleting files (structure remains)
   =/  my-ball  *ball:tarball
-  =/  content=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
+  =/  content=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo/bar %test content)
   =/  g2  (~(del ba:tarball g1) /foo/bar %test)
   =/  dap-result  (~(dap ba:tarball g2) /foo/bar)
@@ -388,7 +388,7 @@
 ++  test-dap-nonexistent-sibling
   ::  Path doesn't exist if we never created it
   =/  my-ball  *ball:tarball
-  =/  content=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
+  =/  content=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo %test content)
   =/  dap-result  (~(dap ba:tarball g1) /bar)
   =/  dip-result  (~(dip ba:tarball g1) /bar)
@@ -406,7 +406,7 @@
 ++  test-dap-nonexistent-child
   ::  Path doesn't exist if we go deeper than structure
   =/  my-ball  *ball:tarball
-  =/  content=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
+  =/  content=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo %test content)
   =/  dap-result  (~(dap ba:tarball g1) /foo/bar)
   =/  dip-result  (~(dip ba:tarball g1) /foo/bar)
@@ -424,7 +424,7 @@
 ++  test-dap-parent-exists
   ::  Parent path exists when child has files
   =/  my-ball  *ball:tarball
-  =/  content=content:tarball  [%file ~ [%text %plain ~] [5 'hello']]
+  =/  content=content:tarball  [~ [%& [%mime !>([/text/plain [5 'hello']])]]]
   =/  g1  (~(put ba:tarball my-ball) /foo/bar/baz %test content)
   =/  dap-result  (~(dap ba:tarball g1) /foo)
   =/  dip-result  (~(dip ba:tarball g1) /foo)

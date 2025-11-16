@@ -8,6 +8,8 @@
 /=  claude-routes  /lib/routes/claude
 /=  brave-routes  /lib/routes/brave
 /=  t-  /tests/tarball
+/=  m-  /mar/eyre/bindings
+/=  m-  /mar/claude/chat
 =>
   |%
   +$  card  card:sailbox
@@ -20,8 +22,6 @@
 ++  initial
   ^-  vase
   =|  state=state-0
-  =.  bindings.state  (sy ~[[~ /master]])
-  =.  telegram-alarms.state  ~
   !>(state)
 ::
 ++  migrate
@@ -63,37 +63,67 @@
     ::  Set default timezone to UTC with correct type (wain)
     ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /config 'timezone.txt' [%txt !>(~['UTC'])])
     =.  ball.state  new-ball
+    ::  Set default eyre bindings
+    =/  default-bindings=(list binding:eyre)  ~[[~ /master]]
+    ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /config 'bindings.eyre-bindings' [%eyre-bindings !>(default-bindings)])
+    =.  ball.state  new-ball
     ::  Create /state directory and initialize counter
     ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /state)
     =.  ball.state  new-ball
     ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /state 'counter.ud' [%ud !>(0)])
     =.  ball.state  new-ball
-    ::  Create /processes/commits directory
+    ::  Create /processes/commits and /processes/alarms directories
     ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /processes)
     =.  ball.state  new-ball
     ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /processes/commits)
     =.  ball.state  new-ball
+    ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /processes/alarms)
+    =.  ball.state  new-ball
+    ::  Create /claude directory for chats and active chat
+    ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /claude)
+    =.  ball.state  new-ball
+    ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /claude/chats)
+    =.  ball.state  new-ball
+    ::  Initialize active-chat as empty (no active chat)
+    ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /claude 'active-chat.txt' [%txt !>(~)])
+    =.  ball.state  new-ball
     ;<  ~  bind:m  (replace:io !>(state))
-    ;<  ~  bind:m  (set-bindings:io ~(tap in bindings.state))
-    ::  Restart all pending telegram alarms
-    (restart-alarms:telegram telegram-alarms.state)
+    ::  Set bindings (just use the default we created)
+    (set-bindings:io default-bindings)
     ::
       %on-load :: sent by sailbox
     ;<  state=state-0  bind:m  (get-state-as:io state-0)
-    ;<  ~  bind:m  (set-bindings:io ~(tap in bindings.state))
-    ::  Restart all pending telegram alarms
-    (restart-alarms:telegram telegram-alarms.state)
+    ::  Read bindings from config and set them (with fallback if not found)
+    =/  bindings=(list binding:eyre)
+      =/  maybe-bindings=(unit (list binding:eyre))
+        (~(get-cage-as ba:tarball ball.state) /config 'bindings.eyre-bindings' ,(list binding:eyre))
+      ?~  maybe-bindings
+        ~[[~ /master]]  ::  fallback to default
+      u.maybe-bindings
+    ;<  ~  bind:m  (set-bindings:io bindings)
+    ::  Sailbox will auto-restart alarm fibers with fresh=%.n
+    (pure:m ~)
     ::
       %set-binding
     =+  !<(new-binding=binding:eyre vase)
     ;<  state=state-0  bind:m  (get-state-as:io state-0)
-    =.  bindings.state  (~(put in bindings.state) new-binding)
+    ::  Read current bindings from config
+    =/  current-bindings=(list binding:eyre)
+      (~(got-cage-as ba:tarball ball.state) /config 'bindings.eyre-bindings' ,(list binding:eyre))
+    ::  Add new binding if not already present
+    =/  updated-bindings=(list binding:eyre)
+      ?:  (lien current-bindings |=(b=binding:eyre =(b new-binding)))
+        current-bindings
+      [new-binding current-bindings]
+    ::  Write updated bindings back to config
+    ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /config 'bindings.eyre-bindings' [%eyre-bindings !>(updated-bindings)])
+    =.  ball.state  new-ball
     ;<  ~  bind:m  (replace:io !>(state))
-    (set-bindings:io ~(tap in bindings.state))
+    (set-bindings:io updated-bindings)
     ::
-      %spawn-alarm
-    =+  !<([alarm-id=@da =telegram-alarm] vase)
-    (handle-spawn-alarm:telegram-routes alarm-id telegram-alarm)
+      %set-alarm
+    =+  !<([wake-time=@da message=@t] vase)
+    (run-alarm:telegram wake-time message)
     ::
       %handle-http-request
     =+  !<(req=inbound-request:eyre vase)

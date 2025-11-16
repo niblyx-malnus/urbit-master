@@ -1,4 +1,4 @@
-/-  *master
+/-  *master, *claude
 /+  io=sailboxio, telegram, pytz, random, time, sailbox, server, tarball, json-utils
 |%
 ::  Protocol-agnostic tool interface
@@ -381,22 +381,13 @@
     ~
   ?~  wake-time
     (pure:m [%error 'Invalid time specification. Provide either duration or time+timezone'])
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  ::  Create alarm
-  =/  alarm-id=@da  u.wake-time
-  =/  alarm=telegram-alarm
-    :*  id=alarm-id
-        message=message
-        wake-time=u.wake-time
-    ==
-  ::  Update state with new alarm
-  =.  telegram-alarms.state  (~(put by telegram-alarms.state) alarm-id alarm)
-  ;<  ~  bind:m  (replace:io !>(state))
-  ::  Schedule the alarm fiber
+  ::  Initialize alarm state (creates process file)
+  ;<  ~  bind:m  (init-alarm-state:telegram u.wake-time message)
+  ::  Fire-and-forget the alarm fiber (sailbox manages lifecycle)
   ;<  ~  bind:m
     %:  fiber-throw:io
-      (crip "alarm-{(scow %da alarm-id)}")
-      spawn-alarm+!>([alarm-id alarm])
+      (crip "alarm-{(scow %da u.wake-time)}")
+      set-alarm+!>([u.wake-time message])
     ==
   (pure:m [%text 'Telegram message scheduled'])
 ::
@@ -418,14 +409,17 @@
     (slaw %ux p.u.chat-id-json)
   ?~  chat-id
     (pure:m [%error 'No chat context provided'])
-  ::  Update chat name in state
+  ::  Update chat name in ball
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  chat=(unit claude-chat)  (~(get by claude-chats.state) u.chat-id)
+  =/  chat=(unit claude-chat)
+    (~(get-cage-as ba:tarball ball.state) /claude/chats (crip "{(hexn:sailbox u.chat-id)}.claude-chat") claude-chat)
   ?~  chat
     (pure:m [%error 'Chat not found'])
   ::  Update the chat's name
   =/  updated-chat=claude-chat  u.chat(name title)
-  =.  claude-chats.state  (~(put by claude-chats.state) u.chat-id updated-chat)
+  ;<  new-ball=ball:tarball  bind:m
+    (put-cage:io ball.state /claude/chats (crip "{(hexn:sailbox u.chat-id)}.claude-chat") [%claude-chat !>(updated-chat)])
+  =.  ball.state  new-ball
   ;<  ~  bind:m  (replace:io !>(state))
   ::  Send SSE event
   ;<  ~  bind:m
@@ -678,7 +672,7 @@
       %-  ~(gas by *(map @t @t))
       :~  ['mtime' (da-oct:tarball now.bowl)]
       ==
-    =/  new-ball=ball:tarball  (put:ba /processes/commits (crip "{(trip pid)}.json") [%cage meta [%json !>(updated-jon)]])
+    =/  new-ball=ball:tarball  (put:ba /processes/commits (crip "{(trip pid)}.json") [meta %& [%json !>(updated-jon)]])
     =.  ball.state-0  new-ball
     ::  Get updated log count
     =/  new-logs=(list json)  (~(dog jo:json-utils updated-jon) /logs (ar:dejs:format same:dejs:format))

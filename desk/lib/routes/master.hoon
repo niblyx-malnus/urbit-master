@@ -26,9 +26,9 @@
     |-  ^-  (set mark)
     ?~  entries  marks
     =*  content  q.i.entries
-    ?.  ?=(%cage -.content)
+    ?.  ?=(%.y -.data.content)
       $(entries t.entries)
-    $(entries t.entries, marks (~(put in marks) p.cage.content))
+    $(entries t.entries, marks (~(put in marks) p.p.data.content))
   ::  Recurse into subdirectories
   =/  subdirs=(list (pair @ta ball:tarball))  ~(tap by dir.ball)
   |-  ^-  (set mark)
@@ -126,6 +126,7 @@
     (handle-get-new:claude-routes ~)
   ::
       [%master %claude @ ~]
+    ~&  >>>  i.t.t.site.lin
     =/  chat-id=@ux  (rash i.t.t.site.lin hex)
     =/  creds-jon=(unit json)  (get-claude-creds ball.state)
     (handle-get-chat:claude-routes chat-id user-timezone creds-jon)

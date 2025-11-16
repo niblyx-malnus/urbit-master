@@ -1122,7 +1122,8 @@
   ++  process-take
     |=  [pid=@ta take=(unit intake:fiber)]
     ^+  this
-    ?>  (~(has by proc.pipe) pid)
+    ?.  (~(has by proc.pipe) pid)
+      ~|("process {(trip pid)} does not exist" !!)
     =/  =proc:fiber  (~(got by proc.pipe) pid)
     =.  next.proc  (~(put to next.proc) take)
     =.  proc.pipe  (~(put by proc.pipe) pid proc)

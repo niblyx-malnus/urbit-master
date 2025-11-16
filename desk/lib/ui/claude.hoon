@@ -1,4 +1,4 @@
-/-  *master
+/-  *master, *claude
 /+  *ui-layout, sailbox, fi=feather-icons, claude, pytz, pprint=time-pprint
 |%
 ::  Helper: check if chat is waiting for Claude's response
@@ -29,7 +29,8 @@
     ?~  u.tz-wain  'UTC'
     i.u.tz-wain
   ~&  >  "handle-claude-sse called for chat {(hexn:sailbox chat-id)} with event {<event>}"
-  =/  chat=(unit claude-chat)  (~(get by claude-chats.state-data) chat-id)
+  =/  chat=(unit claude-chat)
+    (~(get-cage-as ba:tarball ball.state-data) /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat") claude-chat)
   ?~  chat
     %-  manx-to-wain:sailbox
     ;div: Chat not found
@@ -73,7 +74,7 @@
     =/  rendered-blocks=(list manx)
       %+  turn  blocks
       |=  [block-type=@t text=@t]
-      (render-message-block is-user is-error block-type text timestamp user-timezone)
+      (render-message-block is-user is-error block-type text timestamp index.u.message-to-render user-timezone)
     ::  Wrap blocks with hx-swap-oob
     =/  wrapper=manx
       ;div(hx-swap-oob "beforeend:#messages")
@@ -113,7 +114,7 @@
   ==
 ::
 ++  render-message-block
-  |=  [is-user=? is-error=? block-type=@t text=@t timestamp=@ud tz-name=@t]
+  |=  [is-user=? is-error=? block-type=@t text=@t timestamp=@ud msg-index=@ud tz-name=@t]
   ^-  manx
   =/  bg-style=@t
     ::  Check if this is an error message first
@@ -139,7 +140,7 @@
     ==
   ::  Branch button (using git-branch icon)
   =/  branch-button=manx
-    ;button(class "branch-btn", onclick "branchFrom('{(a-co:co timestamp)}');", title "branch", style "display: inline-flex; align-items: center; margin-left: 0.5rem; opacity: 0; transition: opacity 0.2s; background: none; border: 1px solid currentColor; border-radius: 4px; cursor: pointer; padding: 0.125rem 0.25rem; color: currentColor; font-size: 0.7rem; vertical-align: middle;")
+    ;button(class "branch-btn", onclick "branchFrom('{(a-co:co msg-index)}');", title "branch", style "display: inline-flex; align-items: center; margin-left: 0.5rem; opacity: 0; transition: opacity 0.2s; background: none; border: 1px solid currentColor; border-radius: 4px; cursor: pointer; padding: 0.125rem 0.25rem; color: currentColor; font-size: 0.7rem; vertical-align: middle;")
       ;+  (make:fi 'git-branch')
     ==
   ::  Timestamp footer with copy and branch buttons (single source of truth)
@@ -251,7 +252,7 @@
   =/  is-error=?  =(type.msg %error)
   %+  turn  blocks
   |=  [block-type=@t text=@t]
-  (render-message-block is-user is-error block-type text timestamp tz-name)
+  (render-message-block is-user is-error block-type text timestamp index.msg tz-name)
 ::
 ++  chat-page
   |=  [chat=claude-chat chats=(map @ux claude-chat) user-tz=@t api-key=@t ai-model=@t]
@@ -729,20 +730,8 @@
           ;     console.error('Failed to copy:', err);
           ;   });
           ; }
-          ; function branchFrom(timestamp) {
+          ; function branchFrom(messageIndex) {
           ;   var chatId = window.location.pathname.split('/').pop();
-          ;   var messages = document.querySelectorAll('#messages .message-group[data-timestamp]');
-          ;   var messageIndex = -1;
-          ;   for (var i = 0; i < messages.length; i++) {
-          ;     if (messages[i].getAttribute('data-timestamp') === timestamp) {
-          ;       messageIndex = i;
-          ;       break;
-          ;     }
-          ;   }
-          ;   if (messageIndex === -1) {
-          ;     alert('Could not find message to branch from');
-          ;     return;
-          ;   }
           ;   fetch('/master/claude/' + chatId + '/branch', {
           ;     method: 'POST',
           ;     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

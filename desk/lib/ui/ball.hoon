@@ -46,11 +46,13 @@
     =/  content-data=(unit content:tarball)  (~(get ba:tarball ball) parent filename)
     ?~  content-data
       [/text/plain (as-octs:mimes:html 'file not found')]
-    ?-  -.u.content-data
-      %file  mime.u.content-data
-      %cage
-        (~(cage-to-mime gen:tarball [bowl conversions]) cage.u.content-data)
-      %symlink  [/text/plain (as-octs:mimes:html 'symlink')]
+    =/  dat  data.u.content-data
+    ?-  -.dat
+      %|  [/text/plain (as-octs:mimes:html 'symlink')]
+      %&
+        ?:  =(%mime p.p.dat)
+          !<(mime q.p.dat)
+        (~(cage-to-mime gen:tarball [bowl conversions]) p.dat)
     ==
   ::  No ext - try as directory first, fallback to file
   =/  dir-exists=(unit ball:tarball)  (~(dap ba:tarball ball) ball-path)
@@ -66,11 +68,13 @@
   =/  content-data=(unit content:tarball)  (~(get ba:tarball ball) parent filename)
   ?~  content-data
     [/text/plain (as-octs:mimes:html 'file not found')]
-  ?-  -.u.content-data
-    %file  mime.u.content-data
-    %cage
-      (~(cage-to-mime gen:tarball [bowl conversions]) cage.u.content-data)
-    %symlink  [/text/plain (as-octs:mimes:html 'symlink')]
+  =/  dat  data.u.content-data
+  ?-  -.dat
+    %|  [/text/plain (as-octs:mimes:html 'symlink')]
+    %&
+      ?:  =(%mime p.p.dat)
+        !<(mime q.p.dat)
+      (~(cage-to-mime gen:tarball [bowl conversions]) p.dat)
   ==
 ::  Render ball file browser UI
 ::
@@ -244,35 +248,11 @@
           =/  path-prefix=tape
             ?~  pax  ""
             (trip (spat pax))
-          ?-  -.content-data
-              %file
-            =/  size=@ud  p.q.mime.content-data
-            =/  mime-raw=tape  (trip (spat p.mime.content-data))
-            =/  mime-display=tape  ?~(mime-raw "" (tail mime-raw))
-            =/  file-url=tape  "/master/ball{path-prefix}/{(trip filename)}"
-            ;tr
-              ;td
-                ;a/"{file-url}"
-                  ; {(trip filename)}
-                ==
-              ==
-              ;td: {mime-display}
-              ;td: {(scow %ud size)} bytes
-              ;td: {modified-display}
-              ;td
-                ;a/"{file-url}"(download "")
-                  ;button(type "button"): Download
-                ==
-                ;form(method "POST", action upload-path, style "display: inline; margin-left: 5px;")
-                  ;input(type "hidden", name "action", value "delete-file");
-                  ;input(type "hidden", name "filename", value (trip filename));
-                  ;button(type "submit", onclick "return confirm('Delete {(trip filename)}?')"): Delete
-                ==
-              ==
-            ==
-              %symlink
-            =/  target-display=tape  (trip (encode-road:tarball road.content-data))
-            =/  resolved-path=path  (resolve-road:tarball road.content-data pax)
+          =/  dat  data.content-data
+          ?-  -.dat
+              %|
+            =/  target-display=tape  (trip (encode-road:tarball p.dat))
+            =/  resolved-path=path  (resolve-road:tarball p.dat pax)
             =/  target-url=tape  "/master/ball{(trip (spat resolved-path))}"
             ;tr
               ;td
@@ -292,9 +272,12 @@
                 ==
               ==
             ==
-              %cage
-            ::  Convert cage to mime for display
-            =/  =mime  (~(cage-to-mime gen:tarball [bowl conversions]) cage.content-data)
+              %&
+            ::  Convert cage to mime for display (or extract directly if %mime cage)
+            =/  =mime
+              ?:  =(%mime p.p.dat)
+                !<(mime q.p.dat)
+              (~(cage-to-mime gen:tarball [bowl conversions]) p.dat)
             =/  size=@ud  p.q.mime
             =/  mime-raw=tape  (trip (spat p.mime))
             =/  mime-display=tape  ?~(mime-raw "" (tail mime-raw))

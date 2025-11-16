@@ -1,4 +1,4 @@
-/-  *master
+/-  *master, *claude
 |%
 ::  Calculate approximate character count of a message for token estimation
 ::
