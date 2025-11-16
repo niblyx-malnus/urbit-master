@@ -1,5 +1,5 @@
 |%
-+$  claude-message
++$  message
   $:  role=@t
       content=json  ::  Can be string or array of content blocks
       type=?(%normal %error)  ::  Message type for UI styling
@@ -37,19 +37,19 @@
 ::   - Query sibling branches, alternative approaches
 ::   - Access full conversation history across tree
 ::
-+$  claude-chat-0
++$  chat-0
   $:  %0
       id=@ux
       name=@t
       parent=(unit [chat-id=@ux branch-point=@ud])  :: (unit [parent-chat-id branch-message-index])
       children=(map @ud @ux)                         :: map from message-index to child-chat-id
-      messages-by-time=((mop @ud claude-message) lth)     :: keyed by Unix ms timestamp
-      messages-by-index=((mop @ud claude-message) lth)    :: keyed by sequential index
-      messages-by-chars=((mop @ud claude-message) lth)    :: keyed by cumulative character count
+      messages-by-time=((mop @ud message) lth)     :: keyed by Unix ms timestamp
+      messages-by-index=((mop @ud message) lth)    :: keyed by sequential index
+      messages-by-chars=((mop @ud message) lth)    :: keyed by cumulative character count
       next-index=@ud                                       :: next message index to assign
       total-chars=@ud                                      :: total character count so far
       created=@da
   ==
 ::
-+$  claude-chat  claude-chat-0
++$  chat  chat-0
 --

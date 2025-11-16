@@ -1,14 +1,14 @@
-::  claude-chat: versioned chat conversation
+::  chat: versioned chat conversation
 ::
 /-  claude
-|_  =claude-chat:claude
+|_  =chat:claude
 ++  grad  %noun
 ++  grow
   |%
-  ++  noun  claude-chat
+  ++  noun  chat
   --
 ++  grab
   |%
-  ++  noun  claude-chat:claude
+  ++  noun  chat:claude
   --
 --

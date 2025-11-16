@@ -1,26 +1,26 @@
-/-  *master, *claude
-/+  io=sailboxio, sailbox, server, ui-claude, claude, chat-index,
+/-  *master, claude
+/+  io=sailboxio, sailbox, server, ui-claude, claude-lib=claude, chat-index,
     sse=sse-helpers, *html-utils, tarball, json-utils
 |%
 ::  Helper: Get all chats from ball as a map
 ::
 ++  get-all-chats
   |=  =ball:tarball
-  ^-  (map @ux claude-chat)
+  ^-  (map @ux chat:claude)
   =/  ba-core  ~(. ba:tarball ball)
   =/  filenames=(list @ta)  (lis:ba-core /claude/chats)
   %-  malt
   %+  murn  filenames
   |=  name=@ta
-  ^-  (unit [@ux claude-chat])
-  ::  Only process .claude-chat files
+  ^-  (unit [@ux chat:claude])
+  ::  Only process .chat:claude files
   =/  name-tape=tape  (trip name)
   =/  ext-tape=tape  ".claude-chat"
   =/  ext-len=@ud  (lent ext-tape)
   =/  name-len=@ud  (lent name-tape)
   ?.  (gte name-len ext-len)  ~
   ?.  =((flop (scag ext-len (flop name-tape))) ext-tape)  ~
-  ::  Parse hex ID from filename (everything before .claude-chat)
+  ::  Parse hex ID from filename (everything before .chat:claude)
   =/  id-tape=tape  (slag 0 (scag (sub name-len ext-len) name-tape))
   =/  parsed-id=(unit @ux)  (rush (crip id-tape) hex)
   ?~  parsed-id  ~
@@ -30,10 +30,10 @@
   ::  Must be a cage
   ?.  ?=([%& *] data.u.maybe-content)  ~
   =/  =cage  p.data.u.maybe-content
-  ::  Must have claude-chat mark
+  ::  Must have chat:claude mark
   ?.  =(p.cage %claude-chat)  ~
   ::  Try to extract the chat
-  =/  result  (mule |.(!<(claude-chat q.cage)))
+  =/  result  (mule |.(!<(chat:claude q.cage)))
   ?.  ?=(%& -.result)  ~
   `[u.parsed-id p.result]
 ::
@@ -52,18 +52,18 @@
 ::
 ++  get-chat
   |=  [=ball:tarball chat-id=@ux]
-  ^-  (unit claude-chat)
-  (~(get-cage-as ba:tarball ball) /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat") claude-chat)
+  ^-  (unit chat:claude)
+  (~(get-cage-as ba:tarball ball) /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat") chat:claude)
 ::
 ::  Helper: Put a chat to ball
 ::
 ++  put-chat
-  |=  [chat-id=@ux =claude-chat]
+  |=  [chat-id=@ux =chat:claude]
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
   ;<  new-ball=ball:tarball  bind:m
-    (put-cage:io ball.state /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat") [%claude-chat !>(claude-chat)])
+    (put-cage:io ball.state /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat") [%claude-chat !>(chat)])
   =.  ball.state  new-ball
   ;<  ~  bind:m  (replace:io !>(state))
   (pure:m ~)
@@ -102,7 +102,7 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  chat=(unit claude-chat)  (get-chat ball.state chat-id)
+  =/  chat=(unit chat:claude)  (get-chat ball.state chat-id)
   ?~  chat
     (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Chat Not Found')])
   ::  Build and save user message
@@ -113,7 +113,7 @@
             ['text' s+message]
         ==
     ==
-  =/  user-msg=claude-message  ['user' user-content %normal chat-id 0 0 0 0]
+  =/  user-msg=message:claude  ['user' user-content %normal chat-id 0 0 0 0]
   ;<  =bowl:gall  bind:m  get-bowl:io
   =/  user-timestamp=@ud  (unm:chrono:userlib now.bowl)
   ::  Add user message using triple-index helper
@@ -124,16 +124,16 @@
   ;<  ~  bind:m  (notify-chat-message:sse chat-id user-timestamp)
   ::  Call Claude and get response
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  chat=(unit claude-chat)  (get-chat ball.state chat-id)
+  =/  chat=(unit chat:claude)  (get-chat ball.state chat-id)
   ?~  chat
     (give-simple-payload:io [[200 ~] ~])
-  =/  messages-before=((mop @ud claude-message) lth)  messages-by-time.u.chat
-  =/  all-chats=(map @ux claude-chat)  (get-all-chats ball.state)
-  ;<  [response=@t updated-chat=claude-chat]  bind:m
-    (send-message:claude api-key ai-model u.chat all-chats user-timezone)
+  =/  messages-before=((mop @ud message:claude) lth)  messages-by-time.u.chat
+  =/  all-chats=(map @ux chat:claude)  (get-all-chats ball.state)
+  ;<  [response=@t updated-chat=chat:claude]  bind:m
+    (send-message:claude-lib api-key ai-model u.chat all-chats user-timezone)
   ::  Get fresh state after Claude call (tools may have modified it)
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  chat-after=(unit claude-chat)  (get-chat ball.state chat-id)
+  =/  chat-after=(unit chat:claude)  (get-chat ball.state chat-id)
   ?~  chat-after
     (give-simple-payload:io [[200 ~] ~])
   ~&  >  "Chat name after tools: '{<name.u.chat-after>}'"
@@ -141,8 +141,8 @@
   =.  updated-chat  updated-chat(name name.u.chat-after)
   ;<  ~  bind:m  (put-chat chat-id updated-chat)
   ::  Get all message timestamps from updated chat (already in order)
-  =/  all-timestamps=(list @ud)  (turn (tap:((on @ud claude-message) lth) messages-by-time.updated-chat) head)
-  =/  before-timestamps=(list @ud)  (turn (tap:((on @ud claude-message) lth) messages-before) head)
+  =/  all-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-by-time.updated-chat) head)
+  =/  before-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-before) head)
   ::  Find new timestamps by filtering out ones that existed before
   =/  new-timestamps=(list @ud)
     %+  skip  all-timestamps
@@ -159,7 +159,7 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  chat=(unit claude-chat)  (get-chat ball.state chat-id)
+  =/  chat=(unit chat:claude)  (get-chat ball.state chat-id)
   ?~  chat
     (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Chat Not Found')])
   ::  Update the chat name
@@ -194,23 +194,23 @@
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
   ;<  =bowl:gall  bind:m  get-bowl:io
   ::  Verify parent chat exists
-  =/  parent-chat=(unit claude-chat)  (get-chat ball.state parent-chat-id)
+  =/  parent-chat=(unit chat:claude)  (get-chat ball.state parent-chat-id)
   ?~  parent-chat
     (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Parent Chat Not Found')])
   ::  Verify branch point is a valid message index in parent
-  =/  branch-msg=(unit claude-message)
-    (get:((on @ud claude-message) lth) messages-by-index.u.parent-chat branch-point)
+  =/  branch-msg=(unit message:claude)
+    (get:((on @ud message:claude) lth) messages-by-index.u.parent-chat branch-point)
   ?~  branch-msg
     (give-simple-payload:io [[400 ~] `(as-octs:mimes:html '400 Invalid branch point')])
   ::  Generate unique child chat ID
-  =/  all-chats=(map @ux claude-chat)  (get-all-chats ball.state)
+  =/  all-chats=(map @ux chat:claude)  (get-all-chats ball.state)
   =/  child-chat-id=@ux  |-
     =/  candidate=@ux  `@ux`(sham eny.bowl)
     ?:  (~(has by all-chats) candidate)
       $(eny.bowl +(eny.bowl))
     candidate
   ::  Build new child chat (empty, will reference parent for history)
-  =/  child-chat=claude-chat
+  =/  child-chat=chat:claude
     :*  %0
         child-chat-id
         (crip "Branch from {(trip name.u.parent-chat)}")
@@ -253,13 +253,13 @@
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
   ;<  =bowl:gall  bind:m  get-bowl:io
   ::  Generate unique chat ID
-  =/  all-chats=(map @ux claude-chat)  (get-all-chats ball.state)
+  =/  all-chats=(map @ux chat:claude)  (get-all-chats ball.state)
   =/  chat-id=@ux  |-
     =/  candidate=@ux  `@ux`(sham eny.bowl)
     ?:  (~(has by all-chats) candidate)
       $(eny.bowl +(eny.bowl))
     candidate
-  =/  new-chat=claude-chat
+  =/  new-chat=chat:claude
     :*  %0
         chat-id
         'New Chat'
@@ -283,7 +283,7 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  chat=(unit claude-chat)  (get-chat ball.state chat-id)
+  =/  chat=(unit chat:claude)  (get-chat ball.state chat-id)
   ?~  chat
     (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Chat Not Found')])
   ::  Extract creds for UI display (use defaults if not configured)
@@ -293,7 +293,7 @@
     :*  (~(dog jo:json-utils u.creds-jon) /api-key so:dejs:format)
         (~(dog jo:json-utils u.creds-jon) /ai-model so:dejs:format)
     ==
-  =/  all-chats=(map @ux claude-chat)  (get-all-chats ball.state)
+  =/  all-chats=(map @ux chat:claude)  (get-all-chats ball.state)
   (give-simple-payload:io (mime-response:sailbox [/text/html (manx-to-octs:server (chat-page:ui-claude u.chat all-chats user-timezone api-key ai-model))]))
 ::
 ::  GET /master/claude/{id}/messages - Get paginated messages
@@ -303,7 +303,7 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  chat=(unit claude-chat)  (get-chat ball.state chat-id)
+  =/  chat=(unit chat:claude)  (get-chat ball.state chat-id)
   ?~  chat
     (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Chat Not Found')])
   ::  Parse query parameters
@@ -316,13 +316,13 @@
     ?~  limit-str  3
     (rash u.limit-str dem)
   ::  Get paginated messages using helper
-  =/  message-list=(list [@ud claude-message])
-    (get-messages-page:claude messages-by-time.u.chat before-timestamp limit)
+  =/  message-list=(list [@ud message:claude])
+    (get-messages-page:claude-lib messages-by-time.u.chat before-timestamp limit)
   ::  Render as HTML using render-message from ui-master
   =/  rendered-messages=(list manx)
     %-  zing
     %+  turn  message-list
-    |=  [timestamp=@ud msg=claude-message]
+    |=  [timestamp=@ud msg=message:claude]
     (render-message:ui-claude timestamp msg user-timezone)
   ::  Return fragments directly without wrapper div
   =/  html-text=@t

@@ -1,14 +1,14 @@
-/-  *master, *claude
-/+  *ui-layout, sailbox, fi=feather-icons, claude, pytz, pprint=time-pprint
+/-  *master, claude
+/+  *ui-layout, sailbox, fi=feather-icons, claude-lib=claude, pytz, pprint=time-pprint
 |%
 ::  Helper: check if chat is waiting for Claude's response
 ::
 ++  is-chat-thinking
-  |=  messages=((mop @ud claude-message) lth)
+  |=  messages=((mop @ud message:claude) lth)
   ^-  ?
-  =/  history=(list claude-message)  (turn (tap:((on @ud claude-message) lth) messages) tail)
+  =/  history=(list message:claude)  (turn (tap:((on @ud message:claude) lth) messages) tail)
   ?~  history  %.n  ::  empty chat = not thinking
-  =/  last-msg=claude-message  (snag 0 (flop history))
+  =/  last-msg=message:claude  (snag 0 (flop history))
   =(role.last-msg 'user')  ::  if last message is from user, we're waiting
 ::
 ++  handle-claude-sse
@@ -29,8 +29,8 @@
     ?~  u.tz-wain  'UTC'
     i.u.tz-wain
   ~&  >  "handle-claude-sse called for chat {(hexn:sailbox chat-id)} with event {<event>}"
-  =/  chat=(unit claude-chat)
-    (~(get-cage-as ba:tarball ball.state-data) /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat") claude-chat)
+  =/  chat=(unit chat:claude)
+    (~(get-cage-as ba:tarball ball.state-data) /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat") chat:claude)
   ?~  chat
     %-  manx-to-wain:sailbox
     ;div: Chat not found
@@ -38,21 +38,21 @@
       [~ %message-update]
     ~&  >  "Rendering message-update SSE event with id {<id>}"
     ::  Convert mop to list for rendering
-    =/  messages=(list claude-message)
-      (turn (tap:((on @ud claude-message) lth) messages-by-time.u.chat) tail)
+    =/  messages=(list message:claude)
+      (turn (tap:((on @ud message:claude) lth) messages-by-time.u.chat) tail)
     ::  Get the specific message by timestamp from mop
-    =/  message-to-render=(unit claude-message)
+    =/  message-to-render=(unit message:claude)
       ?~  messages
         ~&  >  "No messages"
         ~
       ?~  id
         ~&  >  "No id provided, using last message"
         :-  ~
-        (snag 0 (flop `(list claude-message)`messages))
+        (snag 0 (flop `(list message:claude)`messages))
       ::  Parse timestamp from SSE id
       =/  msg-timestamp=@ud  (slav %ud u.id)
       ~&  >  "Looking up message at timestamp {<msg-timestamp>}"
-      (get:((on @ud claude-message) lth) messages-by-time.u.chat msg-timestamp)
+      (get:((on @ud message:claude) lth) messages-by-time.u.chat msg-timestamp)
     ?~  message-to-render
       ~&  >  "No message to render"
       %-  manx-to-wain:sailbox
@@ -62,7 +62,7 @@
       ?^  id
         (slav %ud u.id)
       ::  If no id, find the timestamp of the last message
-      =/  all-msgs=(list [@ud claude-message])  (tap:((on @ud claude-message) lth) messages-by-time.u.chat)
+      =/  all-msgs=(list [@ud message:claude])  (tap:((on @ud message:claude) lth) messages-by-time.u.chat)
       ?~  all-msgs  *@ud
       (head (rear all-msgs))
     =/  is-user=?  =(role.u.message-to-render 'user')
@@ -245,7 +245,7 @@
   ==
 ::
 ++  render-message
-  |=  [timestamp=@ud msg=claude-message tz-name=@t]
+  |=  [timestamp=@ud msg=message:claude tz-name=@t]
   ^-  (list manx)
   =/  blocks=(list [@t @t])  (parse-message-blocks content.msg)
   =/  is-user=?  =(role.msg 'user')
@@ -255,18 +255,18 @@
   (render-message-block is-user is-error block-type text timestamp index.msg tz-name)
 ::
 ++  chat-page
-  |=  [chat=claude-chat chats=(map @ux claude-chat) user-tz=@t api-key=@t ai-model=@t]
+  |=  [chat=chat:claude chats=(map @ux chat:claude) user-tz=@t api-key=@t ai-model=@t]
   ^-  manx
   ::  Get only last 50 messages for initial render
-  =/  message-list=(list [@ud claude-message])
-    (get-messages-page:claude messages-by-time.chat ~ 50)
+  =/  message-list=(list [@ud message:claude])
+    (get-messages-page:claude-lib messages-by-time.chat ~ 50)
   ::  Get earliest timestamp for "load more" functionality
   =/  earliest-timestamp=(unit @ud)
     ?~  message-list  ~
     `(head (head message-list))
   ::  Check if we're showing the first message (no more to load)
   =/  first-timestamp=(unit @ud)
-    =/  all-messages=(list [@ud claude-message])  (tap:((on @ud claude-message) lth) messages-by-time.chat)
+    =/  all-messages=(list [@ud message:claude])  (tap:((on @ud message:claude) lth) messages-by-time.chat)
     ?~  all-messages  ~
     `(head (head all-messages))
   =/  has-more=?
@@ -423,7 +423,7 @@
       ==
     %-  zing
     %+  turn  message-list
-    |=  [timestamp=@ud msg=claude-message]
+    |=  [timestamp=@ud msg=message:claude]
     (render-message timestamp msg user-tz)
   =/  chat-script=tape
     """
@@ -600,7 +600,7 @@
         ==
         ;div(style "display: flex; flex-direction: column; gap: 0.5rem;")
           ;*  %+  turn  ~(tap by chats)
-              |=  [chat-list-id=@ux chat-list-chat=claude-chat]
+              |=  [chat-list-id=@ux chat-list-chat=chat:claude]
               ^-  manx
               =/  is-active=?  =(chat-list-id id.chat)
               =/  bg-style=@t
@@ -635,7 +635,7 @@
       ;div(class "main-content", style "width: 100%; box-sizing: border-box; padding: 1rem; display: flex; flex-direction: column; height: 100vh;")
         ;div(style "text-align: center; margin-bottom: 2rem; position: relative;")
           ;*  ?~  parent.chat  ~
-              =/  parent-chat=(unit claude-chat)  (~(get by chats) chat-id.u.parent.chat)
+              =/  parent-chat=(unit chat:claude)  (~(get by chats) chat-id.u.parent.chat)
               ?~  parent-chat  ~
               :~  ;a(href "/master/claude/{(hexn:sailbox chat-id.u.parent.chat)}", title "Go to parent: {(trip name.u.parent-chat)}", style "position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: var(--b1); border: 1px solid var(--b2); border-radius: 6px; color: var(--f0); text-decoration: none; opacity: 0.7; transition: opacity 0.2s;", onmouseover "this.style.opacity='1'", onmouseout "this.style.opacity='0.7'")
                     ;+  (make:fi 'corner-up-left')

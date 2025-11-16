@@ -1,4 +1,4 @@
-/-  *master, *claude
+/-  *master, claude
 /+  io=sailboxio, tools, chat-index, pytz, sailbox, time, iso-8601
 |%
 ::  Maximum characters for context window (as proxy for tokens)
@@ -8,7 +8,7 @@
 ::  Count characters in a message's JSON representation
 ::
 ++  count-message-chars
-  |=  msg=claude-message
+  |=  msg=message:claude
   ^-  @ud
   ::  Convert message to JSON to get accurate character count
   =/  msg-json=json
@@ -23,12 +23,12 @@
 ::  Returns most recent messages that fit within max-context-chars
 ::
 ++  apply-sliding-window
-  |=  history=(list claude-message)
-  ^-  (list claude-message)
+  |=  history=(list message:claude)
+  ^-  (list message:claude)
   ::  Work backwards from most recent message
-  =/  reversed=(list claude-message)  (flop history)
+  =/  reversed=(list message:claude)  (flop history)
   =/  accumulated=@ud  0
-  =/  result=(list claude-message)  ~
+  =/  result=(list message:claude)  ~
   |-
   ?~  reversed
     ::  Return in chronological order
@@ -45,7 +45,7 @@
 ::  Groups consecutive messages by chat-id and formats as [chat-id:idx-idx:char-char][chat-id:idx-idx:char-char]
 ::
 ++  build-chat-ranges
-  |=  messages=(list claude-message)
+  |=  messages=(list message:claude)
   ^-  tape
   ?~  messages  ""
   ::  Group consecutive messages by chat-id
@@ -54,14 +54,14 @@
   =/  start-idx=@ud  index.i.messages
   =/  last-idx=@ud  index.i.messages
   =/  start-char=@ud  cumulative-chars.i.messages
-  =/  last-msg=claude-message  i.messages
-  =/  remaining=(list claude-message)  t.messages
+  =/  last-msg=message:claude  i.messages
+  =/  remaining=(list message:claude)  t.messages
   |-
   ?~  remaining
     ::  Finish last group - end char is cumulative + chars of last message
     =/  end-char=@ud  (add cumulative-chars.last-msg chars.last-msg)
     (weld result "[{(scow %ux current-chat)}:{(a-co:co start-idx)}-{(a-co:co last-idx)}:{(a-co:co start-char)}-{(a-co:co end-char)}]")
-  =/  msg=claude-message  i.remaining
+  =/  msg=message:claude  i.remaining
   ?:  =(chat-id.msg current-chat)
     ::  Same chat, extend range
     $(remaining t.remaining, last-idx index.msg, last-msg msg)
@@ -74,42 +74,42 @@
 ::  Returns messages in chronological order
 ::
 ++  build-ancestor-context
-  |=  [chat=claude-chat chats=(map @ux claude-chat)]
-  ^-  (list claude-message)
+  |=  [chat=chat:claude chats=(map @ux chat:claude)]
+  ^-  (list message:claude)
   ::  Recursively collect messages from ancestors
-  =/  ancestor-messages=(list claude-message)
+  =/  ancestor-messages=(list message:claude)
     ?~  parent.chat  ~
     ::  Get parent chat
-    =/  parent-chat=(unit claude-chat)  (~(get by chats) chat-id.u.parent.chat)
+    =/  parent-chat=(unit chat:claude)  (~(get by chats) chat-id.u.parent.chat)
     ?~  parent-chat  ~
     ::  Get parent's messages up to branch point
-    =/  parent-msgs-by-index=((mop @ud claude-message) lth)  messages-by-index.u.parent-chat
-    =/  parent-msgs-list=(list [@ud claude-message])
-      (tap:((on @ud claude-message) lth) (lot:((on @ud claude-message) lth) parent-msgs-by-index ~ `(add branch-point.u.parent.chat 1)))
+    =/  parent-msgs-by-index=((mop @ud message:claude) lth)  messages-by-index.u.parent-chat
+    =/  parent-msgs-list=(list [@ud message:claude])
+      (tap:((on @ud message:claude) lth) (lot:((on @ud message:claude) lth) parent-msgs-by-index ~ `(add branch-point.u.parent.chat 1)))
     ::  Recursively get parent's ancestors
-    =/  grandparent-msgs=(list claude-message)
+    =/  grandparent-msgs=(list message:claude)
       (build-ancestor-context u.parent-chat chats)
     ::  Combine: grandparents + parent messages up to branch
     (weld grandparent-msgs (turn parent-msgs-list tail))
   ::  Get current chat's own messages
-  =/  own-messages=(list claude-message)
-    (turn (tap:((on @ud claude-message) lth) messages-by-time.chat) tail)
+  =/  own-messages=(list message:claude)
+    (turn (tap:((on @ud message:claude) lth) messages-by-time.chat) tail)
   ::  Combine: ancestors + own messages
   (weld ancestor-messages own-messages)
 ::
 ::  Get paginated messages from a chat
 ::
 ++  get-messages-page
-  |=  [messages=((mop @ud claude-message) lth) before=(unit @ud) limit=@ud]
-  ^-  (list [@ud claude-message])
+  |=  [messages=((mop @ud message:claude) lth) before=(unit @ud) limit=@ud]
+  ^-  (list [@ud message:claude])
   ::  Get messages before timestamp (or all if no timestamp)
-  =/  messages-to-return=((mop @ud claude-message) lth)
+  =/  messages-to-return=((mop @ud message:claude) lth)
     ?~  before
       messages
-    (lot:((on @ud claude-message) lth) messages ~ `u.before)
+    (lot:((on @ud message:claude) lth) messages ~ `u.before)
   ::  Take last N messages (most recent before the timestamp)
-  =/  message-list=(list [@ud claude-message])
-    (scag limit (flop (tap:((on @ud claude-message) lth) messages-to-return)))
+  =/  message-list=(list [@ud message:claude])
+    (scag limit (flop (tap:((on @ud message:claude) lth) messages-to-return)))
   ::  Return in chronological order (oldest first)
   (flop message-list)
 ::
@@ -158,20 +158,20 @@
 ::  Call Claude Messages API with conversation history
 ::
 ++  send-message
-  |=  [api-key=@t ai-model=@t chat=claude-chat chats=(map @ux claude-chat) user-timezone=@t]
-  =/  m  (fiber:io ,[response=@t updated-chat=claude-chat])
+  |=  [api-key=@t ai-model=@t chat=chat:claude chats=(map @ux chat:claude) user-timezone=@t]
+  =/  m  (fiber:io ,[response=@t updated-chat=chat:claude])
   ^-  form:m
   ::  Build full history including ancestors
-  =/  full-history=(list claude-message)
+  =/  full-history=(list message:claude)
     (build-ancestor-context chat chats)
   ::  Apply sliding window to limit context size
-  =/  history=(list claude-message)
+  =/  history=(list message:claude)
     (apply-sliding-window full-history)
   ~&  >  "send-message: {<(lent full-history)>} total messages, using {<(lent history)>} after sliding window"
   ::  Convert message history to JSON format
   =/  messages-json=(list json)
     %+  turn  history
-    |=  msg=claude-message
+    |=  msg=message:claude
     ^-  json
     %-  pairs:enjs:format
     :~  ['role' s+role.msg]
@@ -220,7 +220,7 @@
   =/  context-chars=@ud
     %-  roll  :_  add
     %+  turn  history
-    |=(msg=claude-message (count-message-chars msg))
+    |=(msg=message:claude (count-message-chars msg))
   =/  context-truncated=?  !=(total-messages context-messages)
   =/  chat-id-text=@t  (scot %ux id.chat)
   ::  Build chat range string showing which messages from which chats
@@ -335,7 +335,7 @@
     ::  Add error message as an assistant message so user sees it
     ;<  =bowl:gall  bind:m  get-bowl:io
     =/  error-timestamp=@ud
-      =/  all-timestamps=(list @ud)  (turn (tap:((on @ud claude-message) lth) messages-by-time.chat) head)
+      =/  all-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-by-time.chat) head)
       ?~  all-timestamps  (unm:chrono:userlib now.bowl)
       (add (snag 0 (flop all-timestamps)) 1)
     =/  error-content=json
@@ -345,8 +345,8 @@
               ['text' s+err-text]
           ==
       ==
-    =/  error-msg=claude-message  ['assistant' error-content %error id.chat 0 0 0 0]
-    =/  chat-with-error=claude-chat
+    =/  error-msg=message:claude  ['assistant' error-content %error id.chat 0 0 0 0]
+    =/  chat-with-error=chat:claude
       (add-message:chat-index chat error-timestamp error-msg)
     (pure:m [err-text chat-with-error])
   ::  Check stop_reason to see if Claude wants to use a tool
@@ -379,12 +379,12 @@
     ;<  =bowl:gall  bind:m  get-bowl:io
     ::  Find the highest timestamp in existing messages and add 1
     =/  last-timestamp=@ud
-      =/  all-timestamps=(list @ud)  (turn (tap:((on @ud claude-message) lth) messages-by-time.chat) head)
+      =/  all-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-by-time.chat) head)
       ?~  all-timestamps  (unm:chrono:userlib now.bowl)
       (add (snag 0 (flop all-timestamps)) 1)
     =/  assistant-timestamp=@ud  last-timestamp
-    =/  assistant-msg=claude-message  ['assistant' p.content-array %normal id.chat 0 0 0 0]
-    =/  chat-with-tool=claude-chat
+    =/  assistant-msg=message:claude  ['assistant' p.content-array %normal id.chat 0 0 0 0]
+    =/  chat-with-tool=chat:claude
       (add-message:chat-index chat assistant-timestamp assistant-msg)
     ::  Parse content array to separate text and tool_use blocks
     =/  content-blocks
@@ -426,19 +426,19 @@
     ::  Execute ALL tool calls sequentially and collect results
     =|  tool-results=(list json)
     =/  remaining-tools=(list [@t @t json])  tool-calls
-    =/  current-chat=claude-chat  chat-with-tool
+    =/  current-chat=chat:claude  chat-with-tool
     |-  ^-  form:m
     ?~  remaining-tools
       ::  All tools executed, build tool_result message
       ::  Get highest timestamp from current messages and add 1
       =/  last-timestamp=@ud
-        =/  all-timestamps=(list @ud)  (turn (tap:((on @ud claude-message) lth) messages-by-time.current-chat) head)
+        =/  all-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-by-time.current-chat) head)
         ?~  all-timestamps  *@ud
         (snag 0 (flop all-timestamps))
       =/  tool-result-timestamp=@ud  (add last-timestamp 1)
       =/  tool-result-content=json  [%a (flop tool-results)]
-      =/  user-msg=claude-message  ['user' tool-result-content %normal id.current-chat 0 0 0 0]
-      =/  chat-with-result=claude-chat
+      =/  user-msg=message:claude  ['user' tool-result-content %normal id.current-chat 0 0 0 0]
+      =/  chat-with-result=chat:claude
         (add-message:chat-index current-chat tool-result-timestamp user-msg)
       ::  Recursively call Claude again with all tool results
       (send-message api-key ai-model chat-with-result chats user-timezone)
@@ -496,12 +496,12 @@
   ::  Add assistant's text response using helper
   ::  Get highest timestamp from existing messages and add 1
   =/  last-timestamp=@ud
-    =/  all-timestamps=(list @ud)  (turn (tap:((on @ud claude-message) lth) messages-by-time.chat) head)
+    =/  all-timestamps=(list @ud)  (turn (tap:((on @ud message:claude) lth) messages-by-time.chat) head)
     ?~  all-timestamps  *@ud
     (snag 0 (flop all-timestamps))
   =/  assistant-timestamp=@ud  (add last-timestamp 1)
-  =/  assistant-msg=claude-message  ['assistant' p.content-array %normal id.chat 0 0 0 0]
-  =/  updated-chat=claude-chat
+  =/  assistant-msg=message:claude  ['assistant' p.content-array %normal id.chat 0 0 0 0]
+  =/  updated-chat=chat:claude
     (add-message:chat-index chat assistant-timestamp assistant-msg)
   (pure:m [i.texts updated-chat])
 --

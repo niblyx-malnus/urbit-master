@@ -1,4 +1,4 @@
-/-  *master, *claude
+/-  *master, claude
 /+  io=sailboxio, telegram, pytz, random, time, sailbox, server, tarball, json-utils
 |%
 ::  Protocol-agnostic tool interface
@@ -411,12 +411,12 @@
     (pure:m [%error 'No chat context provided'])
   ::  Update chat name in ball
   ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  chat=(unit claude-chat)
-    (~(get-cage-as ba:tarball ball.state) /claude/chats (crip "{(hexn:sailbox u.chat-id)}.claude-chat") claude-chat)
+  =/  chat=(unit chat:claude)
+    (~(get-cage-as ba:tarball ball.state) /claude/chats (crip "{(hexn:sailbox u.chat-id)}.claude-chat") chat:claude)
   ?~  chat
     (pure:m [%error 'Chat not found'])
   ::  Update the chat's name
-  =/  updated-chat=claude-chat  u.chat(name title)
+  =/  updated-chat=chat:claude  u.chat(name title)
   ;<  new-ball=ball:tarball  bind:m
     (put-cage:io ball.state /claude/chats (crip "{(hexn:sailbox u.chat-id)}.claude-chat") [%claude-chat !>(updated-chat)])
   =.  ball.state  new-ball
