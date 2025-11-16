@@ -20,22 +20,20 @@
 ^-  sailbox:sailbox
 |%
 ++  initial
-  ^-  vase
-  =|  state=state-0
-  !>(state)
+  ^-  ball:tarball
+  *ball:tarball
 ::
 ++  migrate
-  |=  old=vase
-  ^-  vase
-  =+  !<(=state-0 old)
-  !>(state-0)
+  |=  old=ball:tarball
+  ^-  ball:tarball
+  old
 ::
 ++  on-peek
-  |=  [=bowl:gall state=vase =path]
+  |=  [=bowl:gall state=ball:tarball =path]
   ~|  "unexpected scry into {<dap.bowl>} on path {<path>}"
   :: [~ ~]
   ?+  path  [~ ~]
-    [%x %dbug %state ~]  ``noun+state
+    [%x %dbug %state ~]  ``ball+!>(state)
   ==
 ::
 ++  process
@@ -53,50 +51,37 @@
     (pure:m ~)
     ::
       %on-init :: sent by sailbox
-    ;<  state=state-0  bind:m  (get-state-as:io state-0)
+    ;<  ball=ball:tarball  bind:m  get-state:io
     ;<  =bowl:gall  bind:m  get-bowl:io
     ::  Create /config and /config/creds directories
-    ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /config)
-    =.  ball.state  new-ball
-    ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /config/creds)
-    =.  ball.state  new-ball
+    ;<  ~  bind:m  (mkd:io /config)
+    ;<  ~  bind:m  (mkd:io /config/creds)
     ::  Set default timezone to UTC with correct type (wain)
-    ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /config 'timezone.txt' [%txt !>(~['UTC'])])
-    =.  ball.state  new-ball
+    ;<  ~  bind:m  (put-cage:io /config 'timezone.txt' [%txt !>(~['UTC'])])
     ::  Set default eyre bindings
     =/  default-bindings=(list binding:eyre)  ~[[~ /master]]
-    ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /config 'bindings.eyre-bindings' [%eyre-bindings !>(default-bindings)])
-    =.  ball.state  new-ball
+    ;<  ~  bind:m  (put-cage:io /config 'bindings.eyre-bindings' [%eyre-bindings !>(default-bindings)])
     ::  Create /state directory and initialize counter
-    ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /state)
-    =.  ball.state  new-ball
-    ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /state 'counter.ud' [%ud !>(0)])
-    =.  ball.state  new-ball
+    ;<  ~  bind:m  (mkd:io /state)
+    ;<  ~  bind:m  (put-cage:io /state 'counter.ud' [%ud !>(0)])
     ::  Create /processes/commits and /processes/alarms directories
-    ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /processes)
-    =.  ball.state  new-ball
-    ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /processes/commits)
-    =.  ball.state  new-ball
-    ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /processes/alarms)
-    =.  ball.state  new-ball
+    ;<  ~  bind:m  (mkd:io /processes)
+    ;<  ~  bind:m  (mkd:io /processes/commits)
+    ;<  ~  bind:m  (mkd:io /processes/alarms)
     ::  Create /claude directory for chats and active chat
-    ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /claude)
-    =.  ball.state  new-ball
-    ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /claude/chats)
-    =.  ball.state  new-ball
+    ;<  ~  bind:m  (mkd:io /claude)
+    ;<  ~  bind:m  (mkd:io /claude/chats)
     ::  Initialize active-chat as empty (no active chat)
-    ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /claude 'active-chat.txt' [%txt !>(~)])
-    =.  ball.state  new-ball
-    ;<  ~  bind:m  (replace:io !>(state))
+    ;<  ~  bind:m  (put-cage:io /claude 'active-chat.txt' [%txt !>(~)])
     ::  Set bindings (just use the default we created)
     (set-bindings:io default-bindings)
     ::
       %on-load :: sent by sailbox
-    ;<  state=state-0  bind:m  (get-state-as:io state-0)
+    ;<  ball=ball:tarball  bind:m  get-state:io
     ::  Read bindings from config and set them (with fallback if not found)
     =/  bindings=(list binding:eyre)
       =/  maybe-bindings=(unit (list binding:eyre))
-        (~(get-cage-as ba:tarball ball.state) /config 'bindings.eyre-bindings' ,(list binding:eyre))
+        (~(get-cage-as ba:tarball ball) /config 'bindings.eyre-bindings' ,(list binding:eyre))
       ?~  maybe-bindings
         ~[[~ /master]]  ::  fallback to default
       u.maybe-bindings
@@ -106,19 +91,17 @@
     ::
       %set-binding
     =+  !<(new-binding=binding:eyre vase)
-    ;<  state=state-0  bind:m  (get-state-as:io state-0)
+    ;<  ball=ball:tarball  bind:m  get-state:io
     ::  Read current bindings from config
     =/  current-bindings=(list binding:eyre)
-      (~(got-cage-as ba:tarball ball.state) /config 'bindings.eyre-bindings' ,(list binding:eyre))
+      (~(got-cage-as ba:tarball ball) /config 'bindings.eyre-bindings' ,(list binding:eyre))
     ::  Add new binding if not already present
     =/  updated-bindings=(list binding:eyre)
       ?:  (lien current-bindings |=(b=binding:eyre =(b new-binding)))
         current-bindings
       [new-binding current-bindings]
     ::  Write updated bindings back to config
-    ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /config 'bindings.eyre-bindings' [%eyre-bindings !>(updated-bindings)])
-    =.  ball.state  new-ball
-    ;<  ~  bind:m  (replace:io !>(state))
+    ;<  ~  bind:m  (put-cage:io /config 'bindings.eyre-bindings' [%eyre-bindings !>(updated-bindings)])
     (set-bindings:io updated-bindings)
     ::
       %set-alarm
@@ -127,13 +110,12 @@
     ::
       %handle-http-request
     =+  !<(req=inbound-request:eyre vase)
-    ;<  state=state-0  bind:m  (get-state-as:io state-0)
     ;<  =bowl:gall  bind:m  get-bowl:io
     =/  lin=request-line:server  (parse-request-line:server url.request.req)
     =/  site=(list @t)  site.lin
     ::  Route based on HTTP method
     ?:  ?=(%'GET' method.request.req)
-      (handle-get-request:master-routes req bowl state)
+      (handle-get-request:master-routes req bowl)
     ::  Parse POST content-type
     =/  content-type=(unit @t)
       (get-header:http 'content-type' header-list.request.req)
@@ -144,9 +126,9 @@
     ?:  ?&  ?=(^ content-type)
             =('multipart/form-data; boundary=' (end 3^30 u.content-type))
         ==
-      (handle-multipart-request:master-routes req site state)
+      (handle-multipart-request:master-routes req site)
     ::  Route form-encoded POSTs
-    (handle-form-request:master-routes req site state)
+    (handle-form-request:master-routes req site)
   ==
 ::
 ++  first-sse-event
@@ -162,14 +144,13 @@
 ::
 ++  make-sse-event
   |=  $:  =bowl:gall
-          state=vase
+          state=ball:tarball
           site=(list @t)
           args=(list [key=@t value=@t])
           id=(unit @t)
           event=(unit @t)
       ==
   ^-  wain
-  =+  !<(state-0 state)
   ?+    site  !!
       [%master %test-sse ~]
     (handle-simple-sse:ui-master bowl state args id event)

@@ -189,9 +189,9 @@
   |=  arguments=(map @t json)
   =/  m  (fiber:io ,tool-result)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  timezone=@t
-    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball.state) /config 'timezone.txt' wain)))
+    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball) /config 'timezone.txt' wain)))
     ?:  ?=(%| -.tz-result)  'UTC'
     =/  tz-wain=(unit wain)  p.tz-result
     ?~  tz-wain  'UTC'
@@ -325,9 +325,9 @@
     %-  ot:dejs:format
     :~  ['message' so:dejs:format]
     ==
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=(unit json)
-    (~(get-cage-as ba:tarball ball.state) /config/creds 'telegram.json' json)
+    (~(get-cage-as ba:tarball ball) /config/creds 'telegram.json' json)
   ?~  jon
     (pure:m [%error 'Telegram credentials not configured'])
   =/  bot-token=@t  (~(dog jo:json-utils u.jon) /bot-token so:dejs:format)
@@ -410,17 +410,15 @@
   ?~  chat-id
     (pure:m [%error 'No chat context provided'])
   ::  Update chat name in ball
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  chat=(unit chat:claude)
-    (~(get-cage-as ba:tarball ball.state) /claude/chats (crip "{(hexn:sailbox u.chat-id)}.claude-chat") chat:claude)
+    (~(get-cage-as ba:tarball ball) /claude/chats (crip "{(hexn:sailbox u.chat-id)}.claude-chat") chat:claude)
   ?~  chat
     (pure:m [%error 'Chat not found'])
   ::  Update the chat's name
   =/  updated-chat=chat:claude  u.chat(name title)
-  ;<  new-ball=ball:tarball  bind:m
-    (put-cage:io ball.state /claude/chats (crip "{(hexn:sailbox u.chat-id)}.claude-chat") [%claude-chat !>(updated-chat)])
-  =.  ball.state  new-ball
-  ;<  ~  bind:m  (replace:io !>(state))
+  ;<  ~  bind:m
+    (put-cage:io /claude/chats (crip "{(hexn:sailbox u.chat-id)}.claude-chat") [%claude-chat !>(updated-chat)])
   ::  Send SSE event
   ;<  ~  bind:m
     (send-sse-event:io /master/claude/stream/(crip (hexn:sailbox u.chat-id)) ~ `%title-update)
@@ -447,9 +445,9 @@
     ?:  (gth u.parsed 20)  20
     u.parsed
   ::  Get Brave Search API key from state
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=(unit json)
-    (~(get-cage-as ba:tarball ball.state) /config/creds 'brave-search.json' json)
+    (~(get-cage-as ba:tarball ball) /config/creds 'brave-search.json' json)
   ?~  jon
     (pure:m [%error 'Brave Search credentials not configured'])
   =/  api-key=@t  (~(dog jo:json-utils u.jon) /api-key so:dejs:format)
@@ -592,44 +590,39 @@
   |=  pid=@ta
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   ::  Delete from ball
-  =/  ba  ~(. ba:tarball ball.state)
+  =/  ba  ~(. ba:tarball ball)
   =/  new-ball=ball:tarball  (del:ba /processes/commits (crip "{(trip pid)}.json"))
-  =.  ball.state  new-ball
-  (replace:io !>(state))
+  (replace:io new-ball)
 ::
 ++  init-commit-state
   |=  [mount-point=@tas pid=@ta]
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   ::  Check if already exists in ball
-  =/  ba  ~(. ba:tarball ball.state)
+  =/  ba  ~(. ba:tarball ball)
   =/  existing=(unit content:tarball)  (get:ba /processes/commits (crip "{(trip pid)}.json"))
   ?^  existing
     (pure:m ~)
   ;<  =cass:clay  bind:m  (scry:io cass:clay %cw mount-point ~)
   =/  jon=json  (build-commit-json cass)
-  ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /processes/commits (crip "{(trip pid)}.json") [%json !>(jon)])
-  =.  ball.state  new-ball
-  (replace:io !>(state))
+  (put-cage:io /processes/commits (crip "{(trip pid)}.json") [%json !>(jon)])
 ::
 ++  commit-desk
   |=  mount-point=@tas
   =/  m  (fiber:io ,~)
   ^-  form:m
   ;<  pid=@ta  bind:m  get-pid:io
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball.state) /processes/commits (crip "{(trip pid)}.json") json)
+    (~(got-cage-as ba:tarball ball) /processes/commits (crip "{(trip pid)}.json") json)
   =/  sent=?  (~(dog jo:json-utils jon) /sent bo:dejs:format)
   ?:  sent
     (pure:m ~)
   =/  updated-jon=json  (~(put jo:json-utils jon) /sent b+%.y)
-  ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /processes/commits (crip "{(trip pid)}.json") [%json !>(updated-jon)])
-  =.  ball.state  new-ball
-  ;<  ~  bind:m  (replace:io !>(state))
+  ;<  ~  bind:m  (put-cage:io /processes/commits (crip "{(trip pid)}.json") [%json !>(updated-jon)])
   ;<  our=@p  bind:m  get-our:io
   (poke:io [our %hood] kiln-commit+!>([mount-point %.n]))
 ::
@@ -640,10 +633,10 @@
   ::  Use raw fiber form (|= input) to pattern match on incoming events
   ::  and directly emit timer cards for debouncing
   |=  input:fiber:sailbox
-  =+  !<(=state-0 state)
+  =/  ball-0=ball:tarball  state
   ::  Read JSON from ball
   =/  jon=json
-    (~(got-cage-as ba:tarball ball.state-0) /processes/commits (crip "{(trip pid)}.json") json)
+    (~(got-cage-as ba:tarball ball-0) /processes/commits (crip "{(trip pid)}.json") json)
   =/  logs=(list json)  (~(dog jo:json-utils jon) /logs (ar:dejs:format same:dejs:format))
   ?+  in  [~ state %skip |]
       ~  [~ state %wait |]
@@ -667,18 +660,18 @@
     =/  log-text=tape  (format-told-to-text told.sign.u.in)
     =/  updated-jon=json  (append-log-to-commit jon (crip log-text))
     ::  Write back to ball using empty dais-map (same-mark update)
-    =/  ba  (~(das ba:tarball ball.state-0) ~)
+    =/  ba  (~(das ba:tarball ball-0) ~)
     =/  meta=metadata:tarball
       %-  ~(gas by *(map @t @t))
       :~  ['mtime' (da-oct:tarball now.bowl)]
       ==
     =/  new-ball=ball:tarball  (put:ba /processes/commits (crip "{(trip pid)}.json") [meta %& [%json !>(updated-jon)]])
-    =.  ball.state-0  new-ball
+    =.  ball-0  new-ball
     ::  Get updated log count
     =/  new-logs=(list json)  (~(dog jo:json-utils updated-jon) /logs (ar:dejs:format same:dejs:format))
     ::  Spawn quiet timer tagged with new log count
     =/  card  [%pass /commit-quiet/(scot %ud (lent new-logs)) %arvo %b %wait (add now.bowl ~s1)]
-    [~[card] !>(state-0) %cont (collect-logs-until-timeout pid)]
+    [~[card] ball-0 %cont (collect-logs-until-timeout pid)]
   ==
 ::
 ++  format-commit-result
@@ -704,9 +697,9 @@
   ;<  ~  bind:m  (collect-logs-until-timeout pid)
   ;<  ~  bind:m  unsubscribe-dill-logs
   ::  Read final result from JSON
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball.state) /processes/commits (crip "{(trip pid)}.json") json)
+    (~(got-cage-as ba:tarball ball) /processes/commits (crip "{(trip pid)}.json") json)
   =/  initial-version=cass:clay  (parse-initial-version jon)
   =/  log-texts=(list @t)  (~(dug jo:json-utils jon) /logs (ar:dejs:format so:dejs:format) ~)
   ;<  final-version=cass:clay  bind:m  (scry:io cass:clay %cw mount-point ~)

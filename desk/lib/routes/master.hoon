@@ -92,12 +92,12 @@
 ++  handle-get-request
   |=  $:  req=inbound-request:eyre
           =bowl:gall
-          state=state-0
       ==
   =/  m  (fiber:io ,~)
   ^-  form:m
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  user-timezone=@t
-    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball.state) /config 'timezone.txt' wain)))
+    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball) /config 'timezone.txt' wain)))
     ?:  ?=(%| -.tz-result)  'UTC'
     =/  tz-wain=(unit wain)  p.tz-result
     ?~  tz-wain  'UTC'
@@ -128,7 +128,7 @@
       [%master %claude @ ~]
     ~&  >>>  i.t.t.site.lin
     =/  chat-id=@ux  (rash i.t.t.site.lin hex)
-    =/  creds-jon=(unit json)  (get-claude-creds ball.state)
+    =/  creds-jon=(unit json)  (get-claude-creds ball)
     (handle-get-chat:claude-routes chat-id user-timezone creds-jon)
   ::
       [%master %claude @ %messages ~]
@@ -136,17 +136,17 @@
     (handle-get-messages:claude-routes chat-id args.lin user-timezone)
   ::
       [%master %ball ~]
-    ;<  conversions=(map mars:clay tube:clay)  bind:m  (get-mark-conversions ball.state)
+    ;<  conversions=(map mars:clay tube:clay)  bind:m  (get-mark-conversions ball)
     =/  =simple-payload:http
-      (mime-response:sailbox (handle-ball-get:ui-ball ball.state bowl conversions ~ [ext args]:lin))
+      (mime-response:sailbox (handle-ball-get:ui-ball ball bowl conversions ~ [ext args]:lin))
     (give-simple-payload:io simple-payload)
   ::
       [%master %ball *]
-    ;<  conversions=(map mars:clay tube:clay)  bind:m  (get-mark-conversions ball.state)
+    ;<  conversions=(map mars:clay tube:clay)  bind:m  (get-mark-conversions ball)
     =/  ball-path=(list @t)  t.t.site.lin
     =/  =simple-payload:http
       %-  mime-response:sailbox
-      (handle-ball-get:ui-ball ball.state bowl conversions t.t.site.lin [ext args]:lin)
+      (handle-ball-get:ui-ball ball bowl conversions t.t.site.lin [ext args]:lin)
     (give-simple-payload:io simple-payload)
   ==
 ::
@@ -169,7 +169,6 @@
 ++  handle-multipart-request
   |=  $:  req=inbound-request:eyre
           site=(list @t)
-          state=state-0
       ==
   =/  m  (fiber:io ,~)
   ^-  form:m
@@ -180,16 +179,14 @@
       (de-request:multipart header-list.request.req body.request.req)
     ?~  parts
       (give-simple-payload:io [[400 ~] `(as-octs:mimes:html 'Invalid multipart data')])
+    ;<  ball=ball:tarball  bind:m  get-state:io
     ;<  =bowl:gall  bind:m  get-bowl:io
     ::  Get conversions for file type detection
     =/  conversions=(map mars:clay tube:clay)  ~
     ::  Update ball with uploaded files
     =/  new-ball=ball:tarball
-      (from-parts:tarball ball.state ~ u.parts now.bowl conversions)
-    =.  ball.state  new-ball
-    ;<  state=state-0  bind:m  (get-state-as:io state-0)
-    =.  ball.state  new-ball
-    ;<  ~  bind:m  (replace:io !>(state))
+      (from-parts:tarball ball ~ u.parts now.bowl conversions)
+    ;<  ~  bind:m  (replace:io new-ball)
     (give-simple-payload:io [[303 ~[['location' '/master/ball']]] ~])
   ::
       [%master %ball *]
@@ -198,16 +195,14 @@
       (de-request:multipart header-list.request.req body.request.req)
     ?~  parts
       (give-simple-payload:io [[400 ~] `(as-octs:mimes:html 'Invalid multipart data')])
+    ;<  ball=ball:tarball  bind:m  get-state:io
     ;<  =bowl:gall  bind:m  get-bowl:io
     =/  ball-path=path  t.t.site
     =/  conversions=(map mars:clay tube:clay)  ~
     ::  Update ball with uploaded files
     =/  new-ball=ball:tarball
-      (from-parts:tarball ball.state ball-path u.parts now.bowl conversions)
-    =.  ball.state  new-ball
-    ;<  state=state-0  bind:m  (get-state-as:io state-0)
-    =.  ball.state  new-ball
-    ;<  ~  bind:m  (replace:io !>(state))
+      (from-parts:tarball ball ball-path u.parts now.bowl conversions)
+    ;<  ~  bind:m  (replace:io new-ball)
     =/  redirect-url=tape
       (weld "/master/ball" (trip (spat ball-path)))
     (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
@@ -218,12 +213,12 @@
 ++  handle-form-request
   |=  $:  req=inbound-request:eyre
           site=(list @t)
-          state=state-0
       ==
   =/  m  (fiber:io ,~)
   ^-  form:m
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  user-timezone=@t
-    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball.state) /config 'timezone.txt' wain)))
+    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball) /config 'timezone.txt' wain)))
     ?:  ?=(%| -.tz-result)  'UTC'
     =/  tz-wain=(unit wain)  p.tz-result
     ?~  tz-wain  'UTC'
@@ -233,22 +228,18 @@
   ?+    site  !!
       [%master %test-sse ~]
     =.  io  io(hold &) :: claim the mutex
-    ;<  state=state-0  bind:m  (get-state-as:io state-0)
+    ;<  ball=ball:tarball  bind:m  get-state:io
     ::  Initialize counter to 0 in ball
-    ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /state 'counter.ud' [%ud !>(0)])
-    =.  ball.state  new-ball
-    ;<  ~  bind:m  (replace:io !>(state))
+    ;<  ~  bind:m  (put-cage:io /state 'counter.ud' [%ud !>(0)])
     ;<  ~  bind:m  (send-sse-event:io /master/test-sse ~ `'/test/counter')
     |-
-    ;<  state=state-0  bind:m  (get-state-as:io state-0)
+    ;<  ball=ball:tarball  bind:m  get-state:io
     ::  Read counter from ball
-    =/  counter=@ud  (~(got-cage-as ba:tarball ball.state) /state 'counter.ud' @ud)
+    =/  counter=@ud  (~(got-cage-as ba:tarball ball) /state 'counter.ud' @ud)
     ?:  (gte counter 5)
       (give-simple-payload:io [[200 ~] ~])
     ::  Increment counter in ball
-    ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /state 'counter.ud' [%ud !>(+(counter))])
-    =.  ball.state  new-ball
-    ;<  ~  bind:m  (replace:io !>(state))
+    ;<  ~  bind:m  (put-cage:io /state 'counter.ud' [%ud !>(+(counter))])
     ;<  ~  bind:m  (send-sse-event:io /master/test-sse ~ `'/test/counter')
     ;<  ~  bind:m  (sleep:io ~s1)
     $
@@ -258,24 +249,22 @@
     (handle-send-message:telegram-routes message)
   ::
       [%master %test-diff ~]
-    ;<  state=state-0  bind:m  (get-state-as:io state-0)
+    ;<  ball=ball:tarball  bind:m  get-state:io
     ::  Create original version
     =/  old-text=wain  ~['line 1' 'line 2' 'line 3']
-    ;<  new-ball=ball:tarball  bind:m
-      (put-cage:io ball.state /state 'test.txt' [%txt !>(old-text)])
-    =.  ball.state  new-ball
+    ;<  ~  bind:m
+      (put-cage:io /state 'test.txt' [%txt !>(old-text)])
     ::  Create new version
     =/  new-text=wain  ~['line 1' 'line 2 MODIFIED' 'line 3' 'line 4 ADDED']
     ::  Compute diff
     ;<  diff=vase  bind:m
-      (diff-file:io ball.state /state 'test.txt' %txt !>(old-text) !>(new-text))
+      (diff-file:io ball /state 'test.txt' %txt !>(old-text) !>(new-text))
     ::  Apply patch
-    ;<  updated-ball=ball:tarball  bind:m
-      (patch-file:io ball.state /state 'test.txt' diff)
-    =.  ball.state  updated-ball
-    ::  Read result
-    =/  result=wain  (~(got-cage-as ba:tarball ball.state) /state 'test.txt' wain)
-    ;<  ~  bind:m  (replace:io !>(state))
+    ;<  ~  bind:m
+      (patch-file:io /state 'test.txt' diff)
+    ::  Re-read ball and result after patch
+    ;<  ball=ball:tarball  bind:m  get-state:io
+    =/  result=wain  (~(got-cage-as ba:tarball ball) /state 'test.txt' wain)
     ::  Return success with result
     =/  response=tape
       """
@@ -290,10 +279,8 @@
   ::
       [%master %set-timezone ~]
     =/  timezone=@t  (need (get-key:kv 'timezone' args))
-    ;<  state=state-0  bind:m  (get-state-as:io state-0)
-    ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /config 'timezone.txt' [%txt !>(~[timezone])])
-    =.  ball.state  new-ball
-    ;<  ~  bind:m  (replace:io !>(state))
+    ;<  ball=ball:tarball  bind:m  get-state:io
+    ;<  ~  bind:m  (put-cage:io /config 'timezone.txt' [%txt !>(~[timezone])])
     (give-simple-payload:io [[200 ~] ~])
   ::
       [%master %s3-upload ~]
@@ -348,9 +335,9 @@
       [%master %claude @ ~]
     =/  chat-id=@ux  (rash i.t.t.site hex)
     =/  message=@t  (need (get-key:kv 'message' args))
-    ;<  state=state-0  bind:m  (get-state-as:io state-0)
+    ;<  ball=ball:tarball  bind:m  get-state:io
     =/  jon=json
-      (~(got-cage-as ba:tarball ball.state) /config/creds 'claude.json' json)
+      (~(got-cage-as ba:tarball ball) /config/creds 'claude.json' json)
     =/  api-key=@t  (~(dog jo:json-utils jon) /api-key so:dejs:format)
     =/  ai-model=@t  (~(dog jo:json-utils jon) /ai-model so:dejs:format)
     %:  handle-message:claude-routes
@@ -371,17 +358,15 @@
     =/  action=@t  (need (get-key:kv 'action' args))
     ?+    action  (give-simple-payload:io [[400 ~] `(as-octs:mimes:html 'Unknown action')])
         %'create-folder'
-      ;<  state=state-0  bind:m  (get-state-as:io state-0)
+      ;<  ball=ball:tarball  bind:m  get-state:io
       =/  foldername=@ta  (rash (need (get-key:kv 'foldername' args)) sym)
-      ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state /[foldername])
-      =.  ball.state  new-ball
-      ;<  ~  bind:m  (replace:io !>(state))
+      ;<  ~  bind:m  (mkd:io /[foldername])
       (give-simple-payload:io [[303 ~[['location' '/master/ball']]] ~])
     ==
   ::
       [%master %ball *]
     ::  Handle ball actions in subdirectories
-    ;<  state=state-0  bind:m  (get-state-as:io state-0)
+    ;<  ball=ball:tarball  bind:m  get-state:io
     =/  ball-path=path  t.t.site
     =/  action=@t  (need (get-key:kv 'action' args))
     =/  redirect-url=tape  (weld "/master/ball" (trip (spat ball-path)))
@@ -389,31 +374,25 @@
         %'create-folder'
       =/  foldername=@ta  (rash (need (get-key:kv 'foldername' args)) sym)
       =/  dir-path=path  (snoc ball-path foldername)
-      ;<  new-ball=ball:tarball  bind:m  (mkd:io ball.state dir-path)
-      =.  ball.state  new-ball
-      ;<  ~  bind:m  (replace:io !>(state))
+      ;<  ~  bind:m  (mkd:io dir-path)
       (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
     ::
         %'create-symlink'
       =/  linkname=@ta  (rash (need (get-key:kv 'linkname' args)) sym)
       =/  target=@t  (need (get-key:kv 'target' args))
       =/  road=road:tarball  (need (parse-road:tarball target))
-      ;<  new-ball=ball:tarball  bind:m  (put-symlink:io ball.state ball-path linkname road)
-      =.  ball.state  new-ball
-      ;<  ~  bind:m  (replace:io !>(state))
+      ;<  ~  bind:m  (put-symlink:io ball-path linkname road)
       (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
     ::
         %'delete-file'
       =/  filename=@t  (need (get-key:kv 'filename' args))
-      =.  ball.state  (~(del ba:tarball ball.state) ball-path filename)
-      ;<  ~  bind:m  (replace:io !>(state))
+      =.  ball  (~(del ba:tarball ball) ball-path filename)
       (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
     ::
         %'delete-folder'
       =/  foldername=@t  (need (get-key:kv 'foldername' args))
       ::  Delete the directory using tarball API
-      =.  ball.state  (~(del ba:tarball ball.state) ball-path foldername)
-      ;<  ~  bind:m  (replace:io !>(state))
+      =.  ball  (~(del ba:tarball ball) ball-path foldername)
       (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
     ==
   ==

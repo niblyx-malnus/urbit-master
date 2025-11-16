@@ -13,16 +13,15 @@
 ::
 ++  handle-claude-sse
   |=  $:  =bowl:gall
-          state=vase
+          state=ball:tarball
           chat-id=@ux
           args=(list [key=@t value=@t])
           id=(unit @t)
           event=(unit @t)
       ==
   ^-  wain
-  =/  state-data=state-0  !<(state-0 state)
   =/  user-timezone=@t
-    =/  tz-result  (mule |.((~(get-cage-as ba:tarball ball.state-data) /config 'timezone.txt' wain)))
+    =/  tz-result  (mule |.((~(get-cage-as ba:tarball state) /config 'timezone.txt' wain)))
     ?:  ?=(%| -.tz-result)  'UTC'
     =/  tz-wain=(unit wain)  p.tz-result
     ?~  tz-wain  'UTC'
@@ -30,7 +29,7 @@
     i.u.tz-wain
   ~&  >  "handle-claude-sse called for chat {(hexn:sailbox chat-id)} with event {<event>}"
   =/  chat=(unit chat:claude)
-    (~(get-cage-as ba:tarball ball.state-data) /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat") chat:claude)
+    (~(get-cage-as ba:tarball state) /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat") chat:claude)
   ?~  chat
     %-  manx-to-wain:sailbox
     ;div: Chat not found

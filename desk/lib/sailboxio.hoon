@@ -23,20 +23,13 @@
   [~ state %fail err]
 ::
 ++  get-state
-  =/  m  (fiber ,vase)
+  =/  m  (fiber ,ball:tarball)
   ^-  form:m
   |=  input
   [~ state %done state]
 ::
-++  get-state-as
-  |*  a=mold
-  =/  m  (fiber ,a)
-  ^-  form:m
-  |=  input
-  [~ state %done !<(a state)]
-::
 ++  replace
-  |=  new=vase
+  |=  new=ball:tarball
   =/  m  (fiber ,~)
   ^-  form:m
   |=  input
@@ -817,12 +810,13 @@
     ?~  dais  ~
     (~(gas by *(map ^mark dais:clay)) ~[[mark u.dais]])
   (pure:m dais-map)
-::  +put-cage: put a cage into a ball with validation and timestamp
+::  +put-cage: put a cage into ball with validation and timestamp
 ::
 ++  put-cage
-  |=  [b=ball:tarball pax=path name=@ta c=cage]
-  =/  m  (fiber ,ball:tarball)
+  |=  [pax=path name=@ta c=cage]
+  =/  m  (fiber ,~)
   ^-  form:m
+  ;<  b=ball:tarball  bind:m  get-state
   ::  Inline dais-map building
   ;<  our=@p  bind:m  get-our
   ;<  =desk  bind:m  get-desk
@@ -839,26 +833,28 @@
     :~  ['mtime' (da-oct:tarball now)]
     ==
   =/  content=content:tarball  [meta %& c]
-  (pure:m (put:ba pax name content))
-::  +mkd: make a directory in a ball with timestamp
+  (replace (put:ba pax name content))
+::  +mkd: make a directory in ball with timestamp
 ::
 ++  mkd
-  |=  [b=ball:tarball pax=path]
-  =/  m  (fiber ,ball:tarball)
+  |=  pax=path
+  =/  m  (fiber ,~)
   ^-  form:m
+  ;<  b=ball:tarball  bind:m  get-state
   ;<  now=@da  bind:m  get-time
   ::  Build metadata with mtime
   =/  meta=metadata:tarball
     %-  ~(gas by *(map @t @t))
     :~  ['mtime' (da-oct:tarball now)]
     ==
-  (pure:m (~(mkd ba:tarball b) pax meta))
-::  +put-file: put a file into a ball with timestamp
+  (replace (~(mkd ba:tarball b) pax meta))
+::  +put-file: put a file into ball with timestamp
 ::
 ++  put-file
-  |=  [b=ball:tarball pax=path name=@ta =mime]
-  =/  m  (fiber ,ball:tarball)
+  |=  [pax=path name=@ta =mime]
+  =/  m  (fiber ,~)
   ^-  form:m
+  ;<  b=ball:tarball  bind:m  get-state
   ;<  now=@da  bind:m  get-time
   ::  Build metadata with mtime and size
   =/  meta=metadata:tarball
@@ -867,13 +863,14 @@
         ['size' (scot %ud p.q.mime)]
     ==
   =/  content=content:tarball  [meta %& [%mime !>(mime)]]
-  (pure:m (~(put ba:tarball b) pax name content))
-::  +put-symlink: put a symlink into a ball with timestamp
+  (replace (~(put ba:tarball b) pax name content))
+::  +put-symlink: put a symlink into ball with timestamp
 ::
 ++  put-symlink
-  |=  [b=ball:tarball pax=path name=@ta =road:tarball]
-  =/  m  (fiber ,ball:tarball)
+  |=  [pax=path name=@ta =road:tarball]
+  =/  m  (fiber ,~)
   ^-  form:m
+  ;<  b=ball:tarball  bind:m  get-state
   ;<  now=@da  bind:m  get-time
   ::  Build metadata with mtime
   =/  meta=metadata:tarball
@@ -881,7 +878,7 @@
     :~  ['mtime' (da-oct:tarball now)]
     ==
   =/  content=content:tarball  [meta %| road]
-  (pure:m (~(put ba:tarball b) pax name content))
+  (replace (~(put ba:tarball b) pax name content))
 ::  +diff-file: compute diff between two versions of a file
 ::
 ++  diff-file
@@ -895,9 +892,10 @@
 ::  +patch-file: apply a diff to a file in the ball
 ::
 ++  patch-file
-  |=  [b=ball:tarball pax=path name=@ta diff=vase]
-  =/  m  (fiber ,ball:tarball)
+  |=  [pax=path name=@ta diff=vase]
+  =/  m  (fiber ,~)
   ^-  form:m
+  ;<  b=ball:tarball  bind:m  get-state
   ::  Get current file to determine its mark
   =/  ba  (~(das ba:tarball b) ~)
   =/  current=(unit content:tarball)  (get:ba pax name)
@@ -910,5 +908,5 @@
   ?~  dais
     (fiber-fail leaf+"mark {<p.p.data.u.current>} not found" ~)
   ::  Apply patch using tarball
-  (pure:m (patch-cage:ba pax name diff u.dais))
+  (replace (patch-cage:ba pax name diff u.dais))
 --

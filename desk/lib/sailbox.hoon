@@ -1,4 +1,4 @@
-/+  server, multipart, html-utils, default-agent
+/+  *tarball, server, multipart, html-utils, default-agent
 /=  x-  /mar/fiber-ack
 |%
 ++  numb :: adapted from numb:enjs:format
@@ -459,15 +459,15 @@
     $:  pid=@ta          :: fiber id
         =poke            :: the original poke
         =bowl:gall       :: the current bowl
-        state=vase       :: state for which we are responsible
+        state=ball       :: state for which we are responsible
         in=(unit intake) :: command/response/data to ingest (null means start)
     ==
   ::
   ++  output-raw
     |*  value=mold
-    $~  [~ *vase %done *value]
+    $~  [~ *ball %done *value]
     $:  cards=(list card) :: allows for %sse card
-        state=vase
+        state=ball
         $=  next
         $%  [%wait hold=?] :: process intake and optionally claim mutex (boar)
             [%skip hold=?] :: ignore intake and optionally claim mutex
@@ -528,8 +528,8 @@
     ::
     ++  take
       =|  cards=(list card) :: effects
-      |=  [pid=@ta =bowl:gall state=vase =proc]
-      ^-  [(list card) vase _proc result]
+      |=  [pid=@ta =bowl:gall state=ball =proc]
+      ^-  [(list card) ball _proc result]
       =^  take=(unit intake)  next.proc  ~(get to next.proc)
       |-  :: recursion point so take can be replaced
       =/  res=(each output tang)
@@ -626,18 +626,18 @@
   $_  ^|
   |%
   ++  on-peek
-    |~  [bowl:gall state=vase path]
+    |~  [bowl:gall state=ball path]
     *(unit (unit cage))
   ::
-  ++  initial  *vase
-  ++  migrate  |~(vase *vase)
+  ++  initial  *ball
+  ++  migrate  |~(ball *ball)
   ::
   ++  process  *process:fiber
   ::  +make-sse-event: generate SSE event content for a site/event
   ::
   ++  make-sse-event
     |~  $:  =bowl:gall
-            state=vase
+            state=ball
             site=(list @t)
             args=(list [key=@t value=@t])
             id=(unit @t)
@@ -673,7 +673,7 @@
     ++  kv  kv:html-utils
     +$  state-0
       $:  %0
-          state=vase
+          state=ball
           =pipe:fiber
           timers=(map wire @da)
           connections=(map @ta sse-connection)
@@ -1139,7 +1139,7 @@
       this
     =+  ^-
       $:  cards=(list card)
-          new=vase
+          new=ball
           =proc:fiber
           =result:eval:fiber
       ==

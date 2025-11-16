@@ -38,18 +38,17 @@
 ::
 ++  handle-simple-sse
   |=  $:  =bowl:gall
-          state=vase
+          state=ball:tarball
           args=(list [key=@t value=@t])
           id=(unit @t)
           event=(unit @t)
       ==
   ^-  wain
-  =/  s  !<(state-0 state)
   ~&  >  "handle-simple-sse called with event {<event>}"
   ?+    event  !!
       [~ %'/test/counter']
     ::  Read counter from ball
-    =/  counter=@ud  (~(got-cage-as ba:tarball ball.s) /state 'counter.ud' @ud)
+    =/  counter=@ud  (~(got-cage-as ba:tarball state) /state 'counter.ud' @ud)
     ~&  >  "Returning counter value: {<counter>}"
     %-  manx-to-wain:sailbox
     ;div: Count: {(scow %ud counter)}

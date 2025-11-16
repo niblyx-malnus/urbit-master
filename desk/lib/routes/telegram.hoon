@@ -7,9 +7,9 @@
   |=  message=@t
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball.state) /config/creds 'telegram.json' json)
+    (~(got-cage-as ba:tarball ball) /config/creds 'telegram.json' json)
   =/  bot-token=@t  (~(dog jo:json-utils jon) /bot-token so:dejs:format)
   =/  chat-id=@t  (~(dog jo:json-utils jon) /chat-id so:dejs:format)
   ;<  ~  bind:m
@@ -26,7 +26,7 @@
   |=  [bot-token=@t chat-id=@t]
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   ::  Build json directly
   =/  jon=json
     %-  pairs:enjs:format
@@ -34,8 +34,6 @@
         ['chat-id' s+chat-id]
     ==
   ::  Put with validation (single line!)
-  ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /config/creds 'telegram.json' [%json !>(jon)])
-  =.  ball.state  new-ball
-  ;<  ~  bind:m  (replace:io !>(state))
+  ;<  ~  bind:m  (put-cage:io /config/creds 'telegram.json' [%json !>(jon)])
   (pure:m ~)
 --

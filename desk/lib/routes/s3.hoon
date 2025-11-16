@@ -18,9 +18,9 @@
   |=  [text=@t filename=@t]
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball.state) /config/creds 's3.json' json)
+    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
   =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
     (extract-s3-creds jon)
   ;<  now=@da  bind:m  get-time:io
@@ -64,9 +64,9 @@
   |=  filename=@t
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball.state) /config/creds 's3.json' json)
+    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
   =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
     (extract-s3-creds jon)
   ;<  now=@da  bind:m  get-time:io
@@ -107,9 +107,9 @@
   |=  filename=@t
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball.state) /config/creds 's3.json' json)
+    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
   =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
     (extract-s3-creds jon)
   ;<  now=@da  bind:m  get-time:io
@@ -150,9 +150,9 @@
   |=  prefix=@t
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball.state) /config/creds 's3.json' json)
+    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
   =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
     (extract-s3-creds jon)
   ~&  >  "S3 LIST Request:"
@@ -176,9 +176,9 @@
   |=  prefix=@t
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  jon=json
-    (~(got-cage-as ba:tarball ball.state) /config/creds 's3.json' json)
+    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
   =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
     (extract-s3-creds jon)
   ~&  >  "S3 GET DIRECTORY Request:"
@@ -200,7 +200,7 @@
   |=  [access-key=@t secret-key=@t region=@t bucket=@t endpoint=@t]
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   ::  Build json directly
   =/  jon=json
     %-  pairs:enjs:format
@@ -211,8 +211,6 @@
         ['endpoint' s+endpoint]
     ==
   ::  Put with validation
-  ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /config/creds 's3.json' [%json !>(jon)])
-  =.  ball.state  new-ball
-  ;<  ~  bind:m  (replace:io !>(state))
+  ;<  ~  bind:m  (put-cage:io /config/creds 's3.json' [%json !>(jon)])
   (pure:m ~)
 --

@@ -102,9 +102,9 @@
   |=  [wake-time=@da message=@t]
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   ::  Check if already exists in ball
-  =/  ba  ~(. ba:tarball ball.state)
+  =/  ba  ~(. ba:tarball ball)
   =/  filename=@ta  (crip "{(scow %da wake-time)}.json")
   =/  existing=(unit content:tarball)  (get:ba /processes/alarms filename)
   ?^  existing
@@ -112,9 +112,7 @@
   ::  Create initial alarm JSON
   ;<  now=@da  bind:m  get-time:io
   =/  jon=json  (build-alarm-json wake-time message now)
-  ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /processes/alarms filename [%json !>(jon)])
-  =.  ball.state  new-ball
-  (replace:io !>(state))
+  (put-cage:io /processes/alarms filename [%json !>(jon)])
 ::
 ::
 ::  Cleanup alarm state - delete process file
@@ -122,12 +120,11 @@
   |=  wake-time=@da
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  ba  ~(. ba:tarball ball.state)
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  ba  ~(. ba:tarball ball)
   =/  filename=@ta  (crip "{(scow %da wake-time)}.json")
   =/  new-ball=ball:tarball  (del:ba /processes/alarms filename)
-  =.  ball.state  new-ball
-  (replace:io !>(state))
+  (replace:io new-ball)
 ::
 ::  Run the alarm fiber - waits until wake time, sends, cleans up
 ++  run-alarm
@@ -136,9 +133,9 @@
   ^-  form:m
   ;<  ~  bind:m  (init-alarm-state wake-time message)
   ;<  ~  bind:m  (wait-for-alarm wake-time)
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  creds=json
-    (~(got-cage-as ba:tarball ball.state) /config/creds 'telegram.json' json)
+    (~(got-cage-as ba:tarball ball) /config/creds 'telegram.json' json)
   =/  bot-token=@t  (~(dog jo:json-utils creds) /bot-token so:dejs:format)
   =/  chat-id=@t  (~(dog jo:json-utils creds) /chat-id so:dejs:format)
   ;<  ~  bind:m  (send-message bot-token chat-id message)
@@ -150,10 +147,10 @@
   |=  wake-time=@da
   =/  m  (fiber:io ,?)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  filename=@ta  (crip "{(scow %da wake-time)}.json")
   =/  jon=json
-    (~(got-cage-as ba:tarball ball.state) /processes/alarms filename json)
+    (~(got-cage-as ba:tarball ball) /processes/alarms filename json)
   (pure:m (~(dog jo:json-utils jon) /timer-set bo:dejs:format))
 ::
 ::  Mark timer as set and send behn timer
@@ -161,15 +158,13 @@
   |=  wake-time=@da
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  filename=@ta  (crip "{(scow %da wake-time)}.json")
   =/  jon=json
-    (~(got-cage-as ba:tarball ball.state) /processes/alarms filename json)
+    (~(got-cage-as ba:tarball ball) /processes/alarms filename json)
   ::  Mark timer as set
   =/  updated-jon=json  (~(put jo:json-utils jon) /timer-set b+%.y)
-  ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /processes/alarms filename [%json !>(updated-jon)])
-  =.  ball.state  new-ball
-  ;<  ~  bind:m  (replace:io !>(state))
+  ;<  ~  bind:m  (put-cage:io /processes/alarms filename [%json !>(updated-jon)])
   ::  Send the timer card
   (send-raw-card:io %pass /alarm-wake %arvo %b %wait wake-time)
 ::

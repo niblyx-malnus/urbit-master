@@ -7,10 +7,10 @@
   |=  args=(list [key=@t value=@t])
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   ::  Get existing creds from ball
   =/  existing=(unit json)
-    (~(get-cage-as ba:tarball ball.state) /config/creds 'brave-search.json' json)
+    (~(get-cage-as ba:tarball ball) /config/creds 'brave-search.json' json)
   ::  Use existing value if not provided
   =/  api-key=@t
     ?~  existing
@@ -23,8 +23,6 @@
     :~  ['api-key' s+api-key]
     ==
   ::  Put with validation
-  ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /config/creds 'brave-search.json' [%json !>(jon)])
-  =.  ball.state  new-ball
-  ;<  ~  bind:m  (replace:io !>(state))
+  ;<  ~  bind:m  (put-cage:io /config/creds 'brave-search.json' [%json !>(jon)])
   (pure:m ~)
 --

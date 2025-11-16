@@ -61,11 +61,9 @@
   |=  [chat-id=@ux =chat:claude]
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  ;<  new-ball=ball:tarball  bind:m
-    (put-cage:io ball.state /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat") [%claude-chat !>(chat)])
-  =.  ball.state  new-ball
-  ;<  ~  bind:m  (replace:io !>(state))
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  ;<  ~  bind:m
+    (put-cage:io /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat") [%claude-chat !>(chat)])
   (pure:m ~)
 ::
 ::  Helper: Delete a chat from ball
@@ -74,9 +72,8 @@
   |=  chat-id=@ux
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =.  ball.state  (~(del ba:tarball ball.state) /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat"))
-  ;<  ~  bind:m  (replace:io !>(state))
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =.  ball  (~(del ba:tarball ball) /claude/chats (crip "{(hexn:sailbox chat-id)}.claude-chat"))
   (pure:m ~)
 ::
 ::  Helper: Set active chat in ball
@@ -85,14 +82,12 @@
   |=  chat-id=(unit @ux)
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   =/  txt-content=wain
     ?~  chat-id  ~
     ~[(crip (hexn:sailbox u.chat-id))]
-  ;<  new-ball=ball:tarball  bind:m
-    (put-cage:io ball.state /claude 'active-chat.txt' [%txt !>(txt-content)])
-  =.  ball.state  new-ball
-  ;<  ~  bind:m  (replace:io !>(state))
+  ;<  ~  bind:m
+    (put-cage:io /claude 'active-chat.txt' [%txt !>(txt-content)])
   (pure:m ~)
 ::
 ::  POST /master/claude/{id} - Send message to Claude chat
@@ -101,8 +96,8 @@
   |=  [chat-id=@ux message=@t api-key=@t ai-model=@t user-timezone=@t]
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  chat=(unit chat:claude)  (get-chat ball.state chat-id)
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  chat=(unit chat:claude)  (get-chat ball chat-id)
   ?~  chat
     (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Chat Not Found')])
   ::  Build and save user message
@@ -123,17 +118,17 @@
   ::  Send SSE event for user message
   ;<  ~  bind:m  (notify-chat-message:sse chat-id user-timestamp)
   ::  Call Claude and get response
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  chat=(unit chat:claude)  (get-chat ball.state chat-id)
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  chat=(unit chat:claude)  (get-chat ball chat-id)
   ?~  chat
     (give-simple-payload:io [[200 ~] ~])
   =/  messages-before=((mop @ud message:claude) lth)  messages-by-time.u.chat
-  =/  all-chats=(map @ux chat:claude)  (get-all-chats ball.state)
+  =/  all-chats=(map @ux chat:claude)  (get-all-chats ball)
   ;<  [response=@t updated-chat=chat:claude]  bind:m
     (send-message:claude-lib api-key ai-model u.chat all-chats user-timezone)
   ::  Get fresh state after Claude call (tools may have modified it)
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  chat-after=(unit chat:claude)  (get-chat ball.state chat-id)
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  chat-after=(unit chat:claude)  (get-chat ball chat-id)
   ?~  chat-after
     (give-simple-payload:io [[200 ~] ~])
   ~&  >  "Chat name after tools: '{<name.u.chat-after>}'"
@@ -158,8 +153,8 @@
   |=  [chat-id=@ux new-name=@t]
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  chat=(unit chat:claude)  (get-chat ball.state chat-id)
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  chat=(unit chat:claude)  (get-chat ball chat-id)
   ?~  chat
     (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Chat Not Found')])
   ::  Update the chat name
@@ -173,9 +168,9 @@
   |=  chat-id=@ux
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   ::  Check if this is the active chat before deleting
-  =/  active=(unit @ux)  (get-active-chat ball.state)
+  =/  active=(unit @ux)  (get-active-chat ball)
   =/  was-active=?  =(`chat-id active)
   ::  Delete the chat
   ;<  ~  bind:m  (del-chat chat-id)
@@ -191,10 +186,10 @@
   |=  [parent-chat-id=@ux branch-point=@ud]
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   ;<  =bowl:gall  bind:m  get-bowl:io
   ::  Verify parent chat exists
-  =/  parent-chat=(unit chat:claude)  (get-chat ball.state parent-chat-id)
+  =/  parent-chat=(unit chat:claude)  (get-chat ball parent-chat-id)
   ?~  parent-chat
     (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Parent Chat Not Found')])
   ::  Verify branch point is a valid message index in parent
@@ -203,7 +198,7 @@
   ?~  branch-msg
     (give-simple-payload:io [[400 ~] `(as-octs:mimes:html '400 Invalid branch point')])
   ::  Generate unique child chat ID
-  =/  all-chats=(map @ux chat:claude)  (get-all-chats ball.state)
+  =/  all-chats=(map @ux chat:claude)  (get-all-chats ball)
   =/  child-chat-id=@ux  |-
     =/  candidate=@ux  `@ux`(sham eny.bowl)
     ?:  (~(has by all-chats) candidate)
@@ -238,8 +233,8 @@
   |=  ~
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  active=(unit @ux)  (get-active-chat ball.state)
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  active=(unit @ux)  (get-active-chat ball)
   ?^  active
     (give-simple-payload:io [[303 ~[['location' (crip "/master/claude/{(hexn:sailbox u.active)}")]]] ~])
   (give-simple-payload:io [[303 ~[['location' '/master/claude/new']]] ~])
@@ -250,10 +245,10 @@
   |=  ~
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   ;<  =bowl:gall  bind:m  get-bowl:io
   ::  Generate unique chat ID
-  =/  all-chats=(map @ux chat:claude)  (get-all-chats ball.state)
+  =/  all-chats=(map @ux chat:claude)  (get-all-chats ball)
   =/  chat-id=@ux  |-
     =/  candidate=@ux  `@ux`(sham eny.bowl)
     ?:  (~(has by all-chats) candidate)
@@ -282,8 +277,8 @@
   |=  [chat-id=@ux user-timezone=@t creds-jon=(unit json)]
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  chat=(unit chat:claude)  (get-chat ball.state chat-id)
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  chat=(unit chat:claude)  (get-chat ball chat-id)
   ?~  chat
     (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Chat Not Found')])
   ::  Extract creds for UI display (use defaults if not configured)
@@ -293,7 +288,7 @@
     :*  (~(dog jo:json-utils u.creds-jon) /api-key so:dejs:format)
         (~(dog jo:json-utils u.creds-jon) /ai-model so:dejs:format)
     ==
-  =/  all-chats=(map @ux chat:claude)  (get-all-chats ball.state)
+  =/  all-chats=(map @ux chat:claude)  (get-all-chats ball)
   (give-simple-payload:io (mime-response:sailbox [/text/html (manx-to-octs:server (chat-page:ui-claude u.chat all-chats user-timezone api-key ai-model))]))
 ::
 ::  GET /master/claude/{id}/messages - Get paginated messages
@@ -302,8 +297,8 @@
   |=  [chat-id=@ux args=(list [key=@t value=@t]) user-timezone=@t]
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
-  =/  chat=(unit chat:claude)  (get-chat ball.state chat-id)
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  chat=(unit chat:claude)  (get-chat ball chat-id)
   ?~  chat
     (give-simple-payload:io [[404 ~] `(as-octs:mimes:html '404 Chat Not Found')])
   ::  Parse query parameters
@@ -338,10 +333,10 @@
   |=  args=(list [key=@t value=@t])
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  state=state-0  bind:m  (get-state-as:io state-0)
+  ;<  ball=ball:tarball  bind:m  get-state:io
   ::  Get existing creds from ball
   =/  existing=(unit json)
-    (~(get-cage-as ba:tarball ball.state) /config/creds 'claude.json' json)
+    (~(get-cage-as ba:tarball ball) /config/creds 'claude.json' json)
   ::  Use existing values if not provided
   =/  api-key=@t
     ?~  existing
@@ -360,8 +355,6 @@
         ['ai-model' s+ai-model]
     ==
   ::  Put with validation
-  ;<  new-ball=ball:tarball  bind:m  (put-cage:io ball.state /config/creds 'claude.json' [%json !>(jon)])
-  =.  ball.state  new-ball
-  ;<  ~  bind:m  (replace:io !>(state))
+  ;<  ~  bind:m  (put-cage:io /config/creds 'claude.json' [%json !>(jon)])
   (pure:m ~)
 --
