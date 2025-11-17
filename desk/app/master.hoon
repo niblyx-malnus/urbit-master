@@ -1,4 +1,3 @@
-/-  *master
 /+  dbug, sailbox, io=sailboxio, server,
     ui-master, ui-claude, ui-ball, telegram,
     sse=sse-helpers, tarball

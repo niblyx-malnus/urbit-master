@@ -1,4 +1,3 @@
-/-  *master
 /+  io=sailboxio, sailbox
 |%
 ::  Helper functions for sending Server-Sent Events (SSE)

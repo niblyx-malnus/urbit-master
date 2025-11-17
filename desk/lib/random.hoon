@@ -1,4 +1,3 @@
-/-  *master
 /+  io=sailboxio
 |%
 ::  Random value types

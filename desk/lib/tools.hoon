@@ -1,4 +1,4 @@
-/-  *master, claude
+/-  claude
 /+  io=sailboxio, telegram, pytz, random, time, sailbox, server, tarball, json-utils
 |%
 ::  Protocol-agnostic tool interface

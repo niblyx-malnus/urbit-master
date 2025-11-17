@@ -1,4 +1,3 @@
-/-  *master
 /+  *ui-layout, sailbox, fi=feather-icons, ui-claude
 |%
 ++  telegram-card
