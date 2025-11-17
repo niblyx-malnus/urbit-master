@@ -34,6 +34,9 @@
   ;<  ball=ball:tarball  bind:m  get-state:io
   ;<  =bowl:gall  bind:m  get-bowl:io
   ;<  conversions=(map mars:clay tube:clay)  bind:m  (get-mark-conversions:io ball)
+  :: TODO: need to add dais based on file extensions + mime, NOT already
+  ::       existing in $ball
+  ::
   ;<  dais-map=(map mark dais:clay)  bind:m  (get-mark-dais:io ball)
   ::  Update ball with uploaded files
   =/  new-ball=ball:tarball
