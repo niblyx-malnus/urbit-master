@@ -1,4 +1,4 @@
-/+  io=sailboxio
+/+  io=sailboxio, tarball
 ::  S3 (AWS Signature Version 4) library
 ::  Implements cryptographic signing for AWS S3-compatible storage
 ::
@@ -237,6 +237,399 @@
   ~&  >  "Content of {<filename>}:"
   ~&  >  content
   $(files t.files)
+::
+::  Helper: Extract Content-Type from HTTP response headers
+::
+++  extract-content-type
+  |=  response-headers=(list [key=@t value=@t])
+  ^-  (unit @t)
+  |-  ^-  (unit @t)
+  ?~  response-headers  ~
+  ?:  =(key.i.response-headers 'content-type')
+    `value.i.response-headers
+  $(response-headers t.response-headers)
+::
+::  Helper: Extract filename from S3 key (handles both paths and simple names)
+::
+++  extract-filename
+  |=  s3-key=@t
+  ^-  @ta
+  =/  key-text=tape  (trip s3-key)
+  =/  last-slash=(unit @ud)  (find "/" (flop key-text))
+  ?~  last-slash
+    ::  No slashes, the whole key is the filename
+    s3-key
+  ::  Has slashes, take everything after the last slash
+  (crip (slag (sub (lent key-text) u.last-slash) key-text))
+::
+::  Helper: Process downloaded S3 content and save to ball with proper typing
+::  Handles Content-Type extraction, mime type determination, and cage conversion
+::
+++  save-downloaded-file
+  |=  $:  response-headers=(list [key=@t value=@t])
+          content=@t
+          s3-key=@t
+          target-path=path
+      ==
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ::  Extract filename from S3 key
+  =/  filename=@ta  (extract-filename s3-key)
+  ::  Extract Content-Type from S3 response headers
+  =/  content-type=(unit @t)  (extract-content-type response-headers)
+  ~&  >  ['S3 Content-Type header:' content-type]
+  ::  Parse file extension
+  =/  ext=(unit @ta)  (parse-extension:tarball filename)
+  ~&  >  ['Parsed extension:' ext]
+  ::  Determine mime type using tarball helper
+  =/  mime-type=path  (determine-mime-type:tarball content-type filename)
+  ~&  >  ['Final mime type:' mime-type]
+  =/  =mime  [mime-type (as-octs:mimes:html content)]
+  ::  Try to convert to typed cage if we have an extension
+  ;<  =ball:tarball  bind:m  get-state:io
+  ;<  conversions=(map mars:clay tube:clay)  bind:m  (get-mark-conversions:io ball)
+  =/  typed-cage=(unit cage)
+    ?~  ext  ~
+    (mime-to-cage:tarball conversions filename mime)
+  ::  Save as typed cage or fallback to mime
+  ?^  typed-cage
+    ;<  ~  bind:m  (put-cage:io target-path filename u.typed-cage)
+    ~&  >  "Downloaded {<s3-key>} to {<target-path>}/{<filename>} as {<p.u.typed-cage>}"
+    (pure:m ~)
+  ;<  ~  bind:m  (put-cage:io target-path filename [%mime !>(mime)])
+  ~&  >  "Downloaded {<s3-key>} to {<target-path>}/{<filename>} as %mime"
+  (pure:m ~)
+::
+::  Download a single file from S3 and save to ball
+::
+++  s3-download-file-to-ball
+  |=  $:  access-key=@t
+          secret-key=@t
+          region=@t
+          endpoint=@t
+          bucket=@t
+          s3-key=@t
+          ball-path=path
+      ==
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ~&  >  "Downloading {<s3-key>} to ball path {<ball-path>}..."
+  ;<  now=@da  bind:m  get-time:io
+  ::  Build AWS Signature V4 for GET request
+  =/  [amz-date=@t payload-hash=@t authorization=@t]
+    %:  build-signature
+      'GET'
+      access-key
+      secret-key
+      region
+      endpoint
+      bucket
+      s3-key
+      ''
+      ~
+      now
+    ==
+  ::  Build request URL and headers
+  =/  url=@t  (build-url endpoint bucket s3-key ~)
+  =/  headers=(list [@t @t])  (build-headers 'GET' payload-hash amz-date authorization)
+  =/  =request:http
+    :*  %'GET'
+        url
+        headers
+        ~
+    ==
+  ;<  ~  bind:m  (send-request:io request)
+  ;<  =client-response:iris  bind:m  take-client-response:io
+  ::  Extract response headers and content
+  ?.  ?=([%finished *] client-response)
+    ~&  >>>  "Failed to download file from S3"
+    (pure:m ~)
+  ?~  full-file.client-response
+    ~&  >>>  "Empty response from S3"
+    (pure:m ~)
+  =/  response-headers=(list [key=@t value=@t])
+    headers.response-header.client-response
+  =/  content=@t  ;;(@t q.data.u.full-file.client-response)
+  ?:  =(content '')
+    (pure:m ~)
+  ::  Use helper to save file with proper mime type detection
+  %:  save-downloaded-file
+    response-headers
+    content
+    s3-key
+    ball-path
+  ==
+::
+::  Download directory from S3 and save to ball
+::
+++  s3-download-directory-to-ball
+  |=  $:  access-key=@t
+          secret-key=@t
+          region=@t
+          endpoint=@t
+          bucket=@t
+          s3-prefix=@t
+          ball-path=path
+      ==
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ~&  >  "Downloading S3 prefix {<s3-prefix>} to ball path {<ball-path>}..."
+  ::  First, list all files in directory
+  ;<  file-keys=(list @t)  bind:m
+    %:  s3-list
+      access-key
+      secret-key
+      region
+      endpoint
+      bucket
+      s3-prefix
+    ==
+  ::  Filter out directories (keys ending in /)
+  =/  files=(list @t)
+    %+  skip  file-keys
+    |=(key=@t =((rear (trip key)) '/'))
+  ~&  >  "Found {<(lent files)>} files to download"
+  ::  Download each file
+  |-
+  ?~  files
+    (pure:m ~)
+  =/  s3-key=@t  i.files
+  ::  Remove prefix from key to get relative path
+  =/  key-path=(list @t)  (slag 1 (rash s3-key (more fas sym)))
+  =/  prefix-path=(list @t)
+    ?:  =(s3-prefix '')  ~
+    (slag 1 (rash s3-prefix (more fas sym)))
+  =/  relative-path=(list @t)
+    ?~  prefix-path  key-path
+    (slag (lent prefix-path) key-path)
+  ::  If relative path has directories, create them
+  =/  target-path=path
+    ?~  relative-path  ball-path
+    ?~  t.relative-path  ball-path  :: Single file, no subdirs
+    (weld ball-path (snip `path`relative-path))
+  =/  filename=@ta  (rear relative-path)
+  ~&  >  "Downloading: {<s3-key>} as {<filename>}"
+  ::  Download file
+  ;<  now=@da  bind:m  get-time:io
+  =/  [amz-date=@t payload-hash=@t authorization=@t]
+    %:  build-signature
+      'GET'
+      access-key
+      secret-key
+      region
+      endpoint
+      bucket
+      s3-key
+      ''
+      ~
+      now
+    ==
+  =/  url=@t  (build-url endpoint bucket s3-key ~)
+  =/  headers=(list [@t @t])  (build-headers 'GET' payload-hash amz-date authorization)
+  =/  =request:http
+    :*  %'GET'
+        url
+        headers
+        ~
+    ==
+  ;<  ~  bind:m  (send-request:io request)
+  ;<  =client-response:iris  bind:m  take-client-response:io
+  ::  Extract response headers and content
+  ?.  ?=([%finished *] client-response)
+    ~&  >>>  "Failed to download {<s3-key>} from S3"
+    $(files t.files)
+  ?~  full-file.client-response
+    ~&  >>>  "Empty response for {<s3-key>}"
+    $(files t.files)
+  =/  response-headers=(list [key=@t value=@t])
+    headers.response-header.client-response
+  =/  content=@t  ;;(@t q.data.u.full-file.client-response)
+  ?:  =(content '')
+    ~&  >  "Skipping empty file: {<s3-key>}"
+    $(files t.files)
+  ::  Use helper to save file with proper mime type detection
+  ;<  ~  bind:m
+    %:  save-downloaded-file
+      response-headers
+      content
+      s3-key
+      target-path
+    ==
+  $(files t.files)
+::
+::  Upload a single file from ball to S3
+::
+++  s3-upload-file-from-ball
+  |=  $:  access-key=@t
+          secret-key=@t
+          region=@t
+          endpoint=@t
+          bucket=@t
+          ball-path=path
+          filename=@ta
+          s3-key=@t
+      ==
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ~&  >  "Uploading {<ball-path>}/{<filename>} to S3 key {<s3-key>}..."
+  ;<  =ball:tarball  bind:m  get-state:io
+  ;<  =bowl:gall  bind:m  get-bowl:io
+  ;<  conversions=(map mars:clay tube:clay)  bind:m  (get-mark-conversions:io ball)
+  ::  Get file content
+  =/  content-data=(unit content:tarball)  (~(get ba:tarball ball) ball-path filename)
+  ?~  content-data
+    ~&  >>>  "File not found: {<ball-path>}/{<filename>}"
+    (pure:m ~)
+  =/  dat  data.u.content-data
+  ?:  ?=(%| -.dat)
+    ~&  >>>  "Cannot upload symlink: {<ball-path>}/{<filename>}"
+    (pure:m ~)
+  ::  Convert cage to mime
+  =/  =mime
+    ?:  =(%mime p.p.dat)
+      !<(mime q.p.dat)
+    (~(cage-to-mime gen:tarball [bowl conversions]) p.dat)
+  =/  text=@t  ;;(@t q.q.mime)
+  ::  Upload to S3
+  ;<  now=@da  bind:m  get-time:io
+  =/  [amz-date=@t payload-hash=@t authorization=@t]
+    %:  build-signature
+      'PUT'
+      access-key
+      secret-key
+      region
+      endpoint
+      bucket
+      s3-key
+      ''
+      `text
+      now
+    ==
+  =/  url=@t  (build-url endpoint bucket s3-key ~)
+  =/  headers=(list [@t @t])  (build-headers 'PUT' payload-hash amz-date authorization)
+  =/  body-octs=octs  (as-octs:mimes:html text)
+  =/  =request:http
+    :*  %'PUT'
+        url
+        headers
+        `body-octs
+    ==
+  ;<  ~  bind:m  (send-request:io request)
+  ;<  =client-response:iris  bind:m  take-client-response:io
+  ~&  >  "Uploaded {<ball-path>}/{<filename>} to {<s3-key>}"
+  (pure:m ~)
+::
+::  Upload directory from ball to S3
+::
+++  s3-upload-directory
+  |=  $:  access-key=@t
+          secret-key=@t
+          region=@t
+          endpoint=@t
+          bucket=@t
+          ball-path=path
+          s3-prefix=@t
+      ==
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ~&  >  "Uploading ball path {<ball-path>} to S3 prefix {<s3-prefix>}..."
+  ;<  =ball:tarball  bind:m  get-state:io
+  ;<  =bowl:gall  bind:m  get-bowl:io
+  ;<  conversions=(map mars:clay tube:clay)  bind:m  (get-mark-conversions:io ball)
+  ::  Get all files from ball directory recursively
+  =/  files-to-upload=(list [path @ta])
+    (collect-files-recursive ball ball-path)
+  ~&  >  "Found {<(lent files-to-upload)>} files to upload"
+  ::  Upload each file
+  |-
+  ?~  files-to-upload
+    (pure:m ~)
+  =/  [file-path=path filename=@ta]  i.files-to-upload
+  ::  Construct S3 key from file path and prefix
+  =/  relative-path=path
+    ?:  =(ball-path ~)  (snoc file-path filename)
+    (snoc (slag (lent ball-path) file-path) filename)
+  =/  s3-key=@t
+    ?:  =(s3-prefix '')
+      (path-to-s3-key relative-path)
+    (crip "{(trip s3-prefix)}/{(trip (path-to-s3-key relative-path))}")
+  ::  Get file content as mime
+  =/  content-data=(unit content:tarball)  (~(get ba:tarball ball) file-path filename)
+  ?~  content-data
+    ~&  >  "Skipping missing file: {<file-path>}/{<filename>}"
+    $(files-to-upload t.files-to-upload)
+  =/  dat  data.u.content-data
+  ?:  ?=(%| -.dat)
+    ~&  >  "Skipping symlink: {<file-path>}/{<filename>}"
+    $(files-to-upload t.files-to-upload)
+  ::  Convert cage to mime
+  =/  =mime
+    ?:  =(%mime p.p.dat)
+      !<(mime q.p.dat)
+    (~(cage-to-mime gen:tarball [bowl conversions]) p.dat)
+  =/  text=@t  ;;(@t q.q.mime)
+  ::  Upload to S3
+  ;<  now=@da  bind:m  get-time:io
+  =/  [amz-date=@t payload-hash=@t authorization=@t]
+    %:  build-signature
+      'PUT'
+      access-key
+      secret-key
+      region
+      endpoint
+      bucket
+      s3-key
+      ''
+      `text
+      now
+    ==
+  =/  url=@t  (build-url endpoint bucket s3-key ~)
+  =/  headers=(list [@t @t])  (build-headers 'PUT' payload-hash amz-date authorization)
+  =/  body-octs=octs  (as-octs:mimes:html text)
+  =/  =request:http
+    :*  %'PUT'
+        url
+        headers
+        `body-octs
+    ==
+  ;<  ~  bind:m  (send-request:io request)
+  ;<  =client-response:iris  bind:m  take-client-response:io
+  ~&  >  "Uploaded {<file-path>}/{<filename>} to {<s3-key>}"
+  $(files-to-upload t.files-to-upload)
+::
+::  Helper: convert path to S3 key (no leading slash)
+::
+++  path-to-s3-key
+  |=  pax=path
+  ^-  @t
+  ?~  pax  ''
+  =/  parts=(list tape)
+    %+  turn  pax
+    |=(p=@ta (trip p))
+  (crip (roll parts |=([a=tape b=tape] ?~(b a "{b}/{a}"))))
+::
+::  Helper: collect all files from a ball directory recursively
+::
+++  collect-files-recursive
+  |=  [=ball:tarball current-path=path]
+  ^-  (list [path @ta])
+  ::  Get files at current path
+  =/  files=(list @ta)  (~(lis ba:tarball ball) current-path)
+  =/  files-with-path=(list [path @ta])
+    %+  turn  files
+    |=(f=@ta [current-path f])
+  ::  Get subdirectories
+  =/  current-ball=ball:tarball  (~(dip ba:tarball ball) current-path)
+  =/  subdirs=(list @ta)  ~(tap in ~(key by dir.current-ball))
+  ::  Recursively collect from subdirectories
+  =/  subdir-files=(list [path @ta])
+    |-  ^-  (list [path @ta])
+    ?~  subdirs  ~
+    =/  subdir-path=path  (snoc current-path i.subdirs)
+    =/  subdir-results=(list [path @ta])
+      (collect-files-recursive ball subdir-path)
+    (weld subdir-results $(subdirs t.subdirs))
+  (weld files-with-path subdir-files)
 ::
 ::  Build S3 URL with optional query string
 ::  Returns full HTTPS URL for S3 request

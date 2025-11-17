@@ -1,5 +1,5 @@
 /-  *master
-/+  io=sailboxio, sailbox, server, ui-master, html-utils, tarball, multipart, json-utils
+/+  io=sailboxio, sailbox, server, ui-master, ui-s3, html-utils, tarball, multipart, json-utils
 /=  ball-routes  /lib/routes/ball
 /=  claude-routes  /lib/routes/claude
 /=  s3-routes  /lib/routes/s3
@@ -67,6 +67,11 @@
     ;<  payload=simple-payload:http  bind:m
       (handle-get:ball-routes ball bowl ball-path [ext args]:lin)
     (give-simple-payload:io payload)
+  ::
+      [%master %s3 ~]
+    =/  =simple-payload:http
+      (mime-response:sailbox [/text/html (manx-to-octs:server (s3-manager:ui-s3 ball bowl))])
+    (give-simple-payload:io simple-payload)
   ==
 ::
 ::  JSON POST request router
@@ -192,6 +197,27 @@
       [%master %s3-get-directory ~]
     =/  prefix=@t  (fall (get-key:kv 'prefix' args) '')
     (handle-get-directory:s3-routes prefix)
+  ::
+      [%master %s3-upload-file ~]
+    =/  ball-path=@t  (need (get-key:kv 'ball-path' args))
+    =/  filename=@t  (need (get-key:kv 'filename' args))
+    =/  s3-key=@t  (need (get-key:kv 's3-key' args))
+    (handle-upload-file:s3-routes ball-path filename s3-key)
+  ::
+      [%master %s3-upload-directory ~]
+    =/  ball-path=@t  (need (get-key:kv 'ball-path' args))
+    =/  s3-prefix=@t  (need (get-key:kv 's3-prefix' args))
+    (handle-upload-directory:s3-routes ball-path s3-prefix)
+  ::
+      [%master %s3-download-directory ~]
+    =/  s3-prefix=@t  (need (get-key:kv 's3-prefix' args))
+    =/  ball-path=@t  (need (get-key:kv 'ball-path' args))
+    (handle-download-directory:s3-routes s3-prefix ball-path)
+  ::
+      [%master %s3-download-file ~]
+    =/  s3-key=@t  (need (get-key:kv 's3-key' args))
+    =/  ball-path=@t  (need (get-key:kv 'ball-path' args))
+    (handle-download-file:s3-routes s3-key ball-path)
   ::
       [%master %update-creds ~]
     =/  bot-token=@t  (need (get-key:kv 'bot-token' args))

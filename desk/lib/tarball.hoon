@@ -47,12 +47,19 @@
   |=  ext=@ta
   ^-  (unit mite)
   ?+  ext  ~
-    %md    `/text/plain
+    %md    `/text/markdown
     %txt   `/text/plain
     %json  `/application/json
     %html  `/text/html
     %css   `/text/css
-    %js    `/text/javascript
+    %js    `/application/javascript
+    %xml   `/application/xml
+    %svg   `/image/'svg+xml'
+    %png   `/image/png
+    %jpg   `/image/jpeg
+    %jpeg  `/image/jpeg
+    %gif   `/image/gif
+    %pdf   `/application/pdf
   ==
 ::  Parse file extension (alphanumeric + hyphens, case-insensitive)
 ::  Parses from reversed input like ++deft:de-purl:html in zuse
@@ -91,6 +98,24 @@
   ?~  tube=(~(get by conversions) %mime u.ext)
     ~
   `[u.ext (u.tube !>(mime))]
+::  Determine MIME type from Content-Type header and/or file extension
+::  Prefers explicit Content-Type, falls back to extension inference
+::  Returns path-formatted mime type (e.g., /text/plain)
+::
+++  determine-mime-type
+  |=  [content-type=(unit @t) filename=@ta]
+  ^-  path
+  ::  If we have an explicit Content-Type, use it
+  ?^  content-type
+    (stab (crip (weld "/" (trip u.content-type))))
+  ::  Otherwise, infer from file extension
+  =/  ext=(unit @ta)  (parse-extension filename)
+  ?~  ext
+    /application/octet-stream
+  =/  mime-type=(unit mite)  (ext-to-mime u.ext)
+  ?^  mime-type
+    u.mime-type
+  /application/octet-stream
 ::  Parse Unix-style path string into road
 ::
 ++  parse-road

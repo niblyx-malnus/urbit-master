@@ -12,6 +12,24 @@
       (~(dog jo:json-utils jon) /endpoint so:dejs:format)
       (~(dog jo:json-utils jon) /bucket so:dejs:format)
   ==
+::  Normalize S3 prefix by stripping leading/trailing slashes
+::
+++  normalize-s3-prefix
+  |=  prefix=@t
+  ^-  @t
+  =/  text=tape  (trip prefix)
+  ::  Strip leading slashes
+  |-  ^-  @t
+  ?~  text  ''
+  ?:  =('/' i.text)  $(text t.text)
+  ::  Strip trailing slashes by reversing, stripping, then reversing back
+  =/  reversed=tape  (flop text)
+  =/  stripped=tape
+    |-  ^-  tape
+    ?~  reversed  reversed
+    ?.  =('/' i.reversed)  reversed
+    $(reversed t.reversed)
+  (crip (flop stripped))
 ::  POST /master/s3-upload - Upload text to S3
 ::
 ++  handle-upload
@@ -155,8 +173,10 @@
     (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
   =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
     (extract-s3-creds jon)
+  ::  Normalize S3 prefix
+  =/  normalized-prefix=@t  (normalize-s3-prefix prefix)
   ~&  >  "S3 LIST Request:"
-  ~&  >  ['Prefix' prefix]
+  ~&  >  ['Prefix' normalized-prefix]
   ;<  file-keys=(list @t)  bind:m
     %:  s3-list:s3
       access-key
@@ -164,7 +184,7 @@
       region
       endpoint
       bucket
-      prefix
+      normalized-prefix
     ==
   ~&  >  "S3 LIST Response - Found {<(lent file-keys)>} files:"
   ~&  >  file-keys
@@ -181,8 +201,10 @@
     (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
   =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
     (extract-s3-creds jon)
+  ::  Normalize S3 prefix
+  =/  normalized-prefix=@t  (normalize-s3-prefix prefix)
   ~&  >  "S3 GET DIRECTORY Request:"
-  ~&  >  ['Prefix' prefix]
+  ~&  >  ['Prefix' normalized-prefix]
   ;<  ~  bind:m
     %:  s3-get-directory:s3
       access-key
@@ -190,7 +212,126 @@
       region
       endpoint
       bucket
-      prefix
+      normalized-prefix
+    ==
+  (pure:m ~)
+::
+::  POST /master/s3-upload-file - Upload single ball file to S3
+::
+++  handle-upload-file
+  |=  [ball-path=@t filename=@t s3-key=@t]
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  jon=json
+    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
+  =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
+    (extract-s3-creds jon)
+  ::  Convert ball-path to path
+  =/  pax=path
+    ?:  =(ball-path '/')  ~
+    (stab ball-path)
+  ::  Convert filename to @ta
+  =/  fname=@ta  (rash filename sym)
+  ::  Normalize S3 key
+  =/  normalized-key=@t  (normalize-s3-prefix s3-key)
+  ;<  ~  bind:m
+    %:  s3-upload-file-from-ball:s3
+      access-key
+      secret-key
+      region
+      endpoint
+      bucket
+      pax
+      fname
+      normalized-key
+    ==
+  (pure:m ~)
+::
+::  POST /master/s3-upload-directory - Upload ball directory to S3
+::
+++  handle-upload-directory
+  |=  [ball-path=@t s3-prefix=@t]
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  jon=json
+    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
+  =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
+    (extract-s3-creds jon)
+  ::  Convert ball-path to path
+  =/  pax=path
+    ?:  =(ball-path '/')  ~
+    (stab ball-path)
+  ::  Normalize S3 prefix
+  =/  normalized-prefix=@t  (normalize-s3-prefix s3-prefix)
+  ;<  ~  bind:m
+    %:  s3-upload-directory:s3
+      access-key
+      secret-key
+      region
+      endpoint
+      bucket
+      pax
+      normalized-prefix
+    ==
+  (pure:m ~)
+::
+::  POST /master/s3-download-directory - Download S3 directory to ball
+::
+++  handle-download-directory
+  |=  [s3-prefix=@t ball-path=@t]
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  jon=json
+    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
+  =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
+    (extract-s3-creds jon)
+  ::  Convert ball-path to path
+  =/  pax=path
+    ?:  =(ball-path '/')  ~
+    (stab ball-path)
+  ::  Normalize S3 prefix
+  =/  normalized-prefix=@t  (normalize-s3-prefix s3-prefix)
+  ;<  ~  bind:m
+    %:  s3-download-directory-to-ball:s3
+      access-key
+      secret-key
+      region
+      endpoint
+      bucket
+      normalized-prefix
+      pax
+    ==
+  (pure:m ~)
+::
+::  POST /master/s3-download-file - Download single S3 file to ball
+::
+++  handle-download-file
+  |=  [s3-key=@t ball-path=@t]
+  =/  m  (fiber:io ,~)
+  ^-  form:m
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  jon=json
+    (~(got-cage-as ba:tarball ball) /config/creds 's3.json' json)
+  =/  [access-key=@t secret-key=@t region=@t endpoint=@t bucket=@t]
+    (extract-s3-creds jon)
+  ::  Convert ball-path to path
+  =/  pax=path
+    ?:  =(ball-path '/')  ~
+    (stab ball-path)
+  ::  Normalize S3 key
+  =/  normalized-key=@t  (normalize-s3-prefix s3-key)
+  ;<  ~  bind:m
+    %:  s3-download-file-to-ball:s3
+      access-key
+      secret-key
+      region
+      endpoint
+      bucket
+      normalized-key
+      pax
     ==
   (pure:m ~)
 ::
@@ -200,7 +341,6 @@
   |=  [access-key=@t secret-key=@t region=@t bucket=@t endpoint=@t]
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  ball=ball:tarball  bind:m  get-state:io
   ::  Build json directly
   =/  jon=json
     %-  pairs:enjs:format
