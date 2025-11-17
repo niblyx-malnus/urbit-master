@@ -735,6 +735,84 @@
   ?>  =(%tube p.r.u.riot)
   (pure:m `!<(tube:clay q.r.u.riot))
 ::
+::  +collect-marks: collect all marks used in cages within a ball
+::
+++  collect-marks
+  |=  =ball:tarball
+  ^-  (set mark)
+  =/  marks=(set mark)  ~
+  ::  Collect marks from current node's contents
+  =?  marks  ?=(^ fil.ball)
+    =/  entries=(list (pair @ta content:tarball))
+      ~(tap by contents.u.fil.ball)
+    |-  ^-  (set mark)
+    ?~  entries  marks
+    =*  content  q.i.entries
+    ?.  ?=(%.y -.data.content)
+      $(entries t.entries)
+    $(entries t.entries, marks (~(put in marks) p.p.data.content))
+  ::  Recurse into subdirectories
+  =/  subdirs=(list (pair @ta ball:tarball))  ~(tap by dir.ball)
+  |-  ^-  (set mark)
+  ?~  subdirs  marks
+  =/  submarks=(set mark)  ^$(ball q.i.subdirs)
+  $(subdirs t.subdirs, marks (~(uni in marks) submarks))
+::
+::  +try-build-tube: build a single tube, trying our desk first then %base
+::
+++  try-build-tube
+  |=  [our=@p =desk =case =mars:clay]
+  =/  m  (fiber ,(unit tube:clay))
+  ^-  form:m
+  ;<  tube=(unit tube:clay)  bind:m
+    (build-tube-soft [our desk case] mars)
+  ?^  tube
+    (pure:m tube)
+  (build-tube-soft [our %base case] mars)
+::
+::  +get-mark-conversions: build mark conversions map for all marks in ball
+::
+++  get-mark-conversions
+  |=  =ball:tarball
+  =/  m  (fiber ,(map mars:clay tube:clay))
+  ^-  form:m
+  ;<  our=@p  bind:m  get-our
+  ;<  =desk  bind:m  get-desk
+  ;<  now=@da  bind:m  get-time
+  =/  =case  [%da now]
+  =/  marks=(list mark)  ~(tap in (collect-marks ball))
+  =/  conversions=(map mars:clay tube:clay)  ~
+  |-  ^-  form:m
+  ?~  marks
+    (pure:m conversions)
+  =/  from=mark  i.marks
+  =/  to=mark  %mime
+  =/  =mars:clay  [from to]
+  ;<  tube-result=(unit tube:clay)  bind:m
+    (try-build-tube our desk case mars)
+  =?  conversions  ?=(^ tube-result)
+    (~(put by conversions) mars u.tube-result)
+  $(marks t.marks)
+::
+::  +get-mark-dais: build mark dais map for all marks in ball
+::
+++  get-mark-dais
+  |=  =ball:tarball
+  =/  m  (fiber ,(map mark dais:clay))
+  ^-  form:m
+  =/  ball-marks=(set mark)  (collect-marks ball)
+  ::  Always include %mime for file uploads
+  =/  marks=(list mark)  ~(tap in (~(put in ball-marks) %mime))
+  =/  dais-map=(map mark dais:clay)  ~
+  |-  ^-  form:m
+  ?~  marks
+    (pure:m dais-map)
+  ;<  dais-result=(unit dais:clay)  bind:m
+    (try-build-dais i.marks)
+  =?  dais-map  ?=(^ dais-result)
+    (~(put by dais-map) i.marks u.dais-result)
+  $(marks t.marks)
+::
 ::  +build-nave: build a mark definition to a $nave
 ::
 ++  build-nave
@@ -864,9 +942,9 @@
     ==
   =/  content=content:tarball  [meta %& [%mime !>(mime)]]
   (replace (~(put ba:tarball b) pax name content))
-::  +put-symlink: put a symlink into ball with timestamp
+::  +put-road: put a symlink into ball with timestamp
 ::
-++  put-symlink
+++  put-road
   |=  [pax=path name=@ta =road:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
@@ -879,6 +957,22 @@
     ==
   =/  content=content:tarball  [meta %| road]
   (replace (~(put ba:tarball b) pax name content))
+::  +del: delete a file or symlink from ball
+::
+++  del
+  |=  [pax=path name=@t]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =ball:tarball  bind:m  get-state
+  (replace (~(del ba:tarball ball) pax name))
+::  +lop: delete a directory from ball
+::
+++  lop
+  |=  pax=path
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =ball:tarball  bind:m  get-state
+  (replace (~(lop ba:tarball ball) pax))
 ::  +diff-file: compute diff between two versions of a file
 ::
 ++  diff-file

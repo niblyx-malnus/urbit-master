@@ -195,6 +195,7 @@
           parts=(list [@t part:multipart])
           now=@da
           conversions=(map mars:clay tube:clay)
+          dais-map=(map mark dais:clay)
       ==
   ^-  ball
   ?~  parts  base
@@ -236,7 +237,8 @@
         %-  ~(gas by *(map @t @t))
         :~  ['mtime' (da-oct now)]
         ==
-      (~(mkd ba base) dir-path dir-metadata)
+      =/  ba  (~(das ba base) dais-map)
+      (mkd:ba dir-path dir-metadata)
     $(base updated-base, current-path dir-path, file-parent t.file-parent)
   ::  Parse filename to extract extension
   =/  parsed=(unit [ext=(unit @ta) pax=path])
@@ -267,8 +269,9 @@
       [file-metadata %& [%mime !>(file-mime)]]
     [file-metadata %& u.maybe-cage]
   ::  Add file to base with explicit directories
+  =/  ba  (~(das ba base-with-dirs) dais-map)
   =/  new-base=ball
-    (~(put ba base-with-dirs) full-parent file-name file-content)
+    (put:ba full-parent file-name file-content)
   $(parts t.parts, base new-base)
 ::
 ++  ba

@@ -1,5 +1,6 @@
 /-  *master
-/+  io=sailboxio, sailbox, server, ui-master, ui-ball, html-utils, tarball, multipart, json-utils
+/+  io=sailboxio, sailbox, server, ui-master, html-utils, tarball, multipart, json-utils
+/=  ball-routes  /lib/routes/ball
 /=  claude-routes  /lib/routes/claude
 /=  s3-routes  /lib/routes/s3
 /=  telegram-routes  /lib/routes/telegram
@@ -13,80 +14,6 @@
   |=  =ball:tarball
   ^-  (unit json)
   (~(get-cage-as ba:tarball ball) /config/creds 'claude.json' json)
-::  Helper to collect all marks used in cages within a ball
-::
-++  collect-marks
-  |=  =ball:tarball
-  ^-  (set mark)
-  =/  marks=(set mark)  ~
-  ::  Collect marks from current node's contents
-  =?  marks  ?=(^ fil.ball)
-    =/  entries=(list (pair @ta content:tarball))
-      ~(tap by contents.u.fil.ball)
-    |-  ^-  (set mark)
-    ?~  entries  marks
-    =*  content  q.i.entries
-    ?.  ?=(%.y -.data.content)
-      $(entries t.entries)
-    $(entries t.entries, marks (~(put in marks) p.p.data.content))
-  ::  Recurse into subdirectories
-  =/  subdirs=(list (pair @ta ball:tarball))  ~(tap by dir.ball)
-  |-  ^-  (set mark)
-  ?~  subdirs  marks
-  =/  submarks=(set mark)  ^$(ball q.i.subdirs)
-  $(subdirs t.subdirs, marks (~(uni in marks) submarks))
-::  Helper to build a single tube, trying our desk first then %base
-::
-++  try-build-tube
-  |=  [our=@p =desk =case =mars:clay]
-  =/  m  (fiber:io ,(unit tube:clay))
-  ^-  form:m
-  ;<  tube=(unit tube:clay)  bind:m
-    (build-tube-soft:io [our desk case] mars)
-  ?^  tube
-    (pure:m tube)
-  (build-tube-soft:io [our %base case] mars)
-::  Note: try-build-dais moved to sailboxio.hoon for reusability
-::
-::  Helper to build mark dais map for all marks in a ball
-::
-++  get-mark-dais
-  |=  =ball:tarball
-  =/  m  (fiber:io ,(map mark dais:clay))
-  ^-  form:m
-  =/  marks=(list mark)  ~(tap in (collect-marks ball))
-  =/  dais-map=(map mark dais:clay)  ~
-  |-  ^-  form:m
-  ?~  marks
-    (pure:m dais-map)
-  ;<  dais-result=(unit dais:clay)  bind:m
-    (try-build-dais:io i.marks)
-  =?  dais-map  ?=(^ dais-result)
-    (~(put by dais-map) i.marks u.dais-result)
-  $(marks t.marks)
-::  Helper to build mark conversions, trying our desk first then %base
-::
-++  get-mark-conversions
-  |=  =ball:tarball
-  =/  m  (fiber:io ,(map mars:clay tube:clay))
-  ^-  form:m
-  ;<  our=@p  bind:m  get-our:io
-  ;<  =desk  bind:m  get-desk:io
-  ;<  now=@da  bind:m  get-time:io
-  =/  =case  [%da now]
-  =/  marks=(list mark)  ~(tap in (collect-marks ball))
-  =/  conversions=(map mars:clay tube:clay)  ~
-  |-  ^-  form:m
-  ?~  marks
-    (pure:m conversions)
-  =/  from=mark  i.marks
-  =/  to=mark  %mime
-  =/  =mars:clay  [from to]
-  ;<  tube-result=(unit tube:clay)  bind:m
-    (try-build-tube our desk case mars)
-  =?  conversions  ?=(^ tube-result)
-    (~(put by conversions) mars u.tube-result)
-  $(marks t.marks)
 ::  GET request router
 ::
 ++  handle-get-request
@@ -135,19 +62,11 @@
     =/  chat-id=@ux  (rash i.t.t.site.lin hex)
     (handle-get-messages:claude-routes chat-id args.lin user-timezone)
   ::
-      [%master %ball ~]
-    ;<  conversions=(map mars:clay tube:clay)  bind:m  (get-mark-conversions ball)
-    =/  =simple-payload:http
-      (mime-response:sailbox (handle-ball-get:ui-ball ball bowl conversions ~ [ext args]:lin))
-    (give-simple-payload:io simple-payload)
-  ::
       [%master %ball *]
-    ;<  conversions=(map mars:clay tube:clay)  bind:m  (get-mark-conversions ball)
     =/  ball-path=(list @t)  t.t.site.lin
-    =/  =simple-payload:http
-      %-  mime-response:sailbox
-      (handle-ball-get:ui-ball ball bowl conversions t.t.site.lin [ext args]:lin)
-    (give-simple-payload:io simple-payload)
+    ;<  payload=simple-payload:http  bind:m
+      (handle-get:ball-routes ball bowl ball-path [ext args]:lin)
+    (give-simple-payload:io payload)
   ==
 ::
 ::  JSON POST request router
@@ -173,39 +92,9 @@
   =/  m  (fiber:io ,~)
   ^-  form:m
   ?+    site  !!
-      [%master %ball ~]
-    ::  Parse multipart data
-    =/  parts=(unit (list [@t part:multipart]))
-      (de-request:multipart header-list.request.req body.request.req)
-    ?~  parts
-      (give-simple-payload:io [[400 ~] `(as-octs:mimes:html 'Invalid multipart data')])
-    ;<  ball=ball:tarball  bind:m  get-state:io
-    ;<  =bowl:gall  bind:m  get-bowl:io
-    ::  Get conversions for file type detection
-    =/  conversions=(map mars:clay tube:clay)  ~
-    ::  Update ball with uploaded files
-    =/  new-ball=ball:tarball
-      (from-parts:tarball ball ~ u.parts now.bowl conversions)
-    ;<  ~  bind:m  (replace:io new-ball)
-    (give-simple-payload:io [[303 ~[['location' '/master/ball']]] ~])
-  ::
       [%master %ball *]
-    ::  Parse multipart data
-    =/  parts=(unit (list [@t part:multipart]))
-      (de-request:multipart header-list.request.req body.request.req)
-    ?~  parts
-      (give-simple-payload:io [[400 ~] `(as-octs:mimes:html 'Invalid multipart data')])
-    ;<  ball=ball:tarball  bind:m  get-state:io
-    ;<  =bowl:gall  bind:m  get-bowl:io
     =/  ball-path=path  t.t.site
-    =/  conversions=(map mars:clay tube:clay)  ~
-    ::  Update ball with uploaded files
-    =/  new-ball=ball:tarball
-      (from-parts:tarball ball ball-path u.parts now.bowl conversions)
-    ;<  ~  bind:m  (replace:io new-ball)
-    =/  redirect-url=tape
-      (weld "/master/ball" (trip (spat ball-path)))
-    (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
+    (handle-multipart-upload:ball-routes req ball-path)
   ==
 ::
 ::  Form-encoded POST request router
@@ -353,47 +242,8 @@
     =/  branch-point=@ud  (rash (need (get-key:kv 'branch-point' args)) dem)
     (handle-branch:claude-routes parent-chat-id branch-point)
   ::
-      [%master %ball ~]
-    ::  Handle ball actions at root
-    =/  action=@t  (need (get-key:kv 'action' args))
-    ?+    action  (give-simple-payload:io [[400 ~] `(as-octs:mimes:html 'Unknown action')])
-        %'create-folder'
-      ;<  ball=ball:tarball  bind:m  get-state:io
-      =/  foldername=@ta  (rash (need (get-key:kv 'foldername' args)) sym)
-      ;<  ~  bind:m  (mkd:io /[foldername])
-      (give-simple-payload:io [[303 ~[['location' '/master/ball']]] ~])
-    ==
-  ::
       [%master %ball *]
-    ::  Handle ball actions in subdirectories
-    ;<  ball=ball:tarball  bind:m  get-state:io
     =/  ball-path=path  t.t.site
-    =/  action=@t  (need (get-key:kv 'action' args))
-    =/  redirect-url=tape  (weld "/master/ball" (trip (spat ball-path)))
-    ?+    action  (give-simple-payload:io [[400 ~] `(as-octs:mimes:html 'Unknown action')])
-        %'create-folder'
-      =/  foldername=@ta  (rash (need (get-key:kv 'foldername' args)) sym)
-      =/  dir-path=path  (snoc ball-path foldername)
-      ;<  ~  bind:m  (mkd:io dir-path)
-      (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
-    ::
-        %'create-symlink'
-      =/  linkname=@ta  (rash (need (get-key:kv 'linkname' args)) sym)
-      =/  target=@t  (need (get-key:kv 'target' args))
-      =/  road=road:tarball  (need (parse-road:tarball target))
-      ;<  ~  bind:m  (put-symlink:io ball-path linkname road)
-      (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
-    ::
-        %'delete-file'
-      =/  filename=@t  (need (get-key:kv 'filename' args))
-      =.  ball  (~(del ba:tarball ball) ball-path filename)
-      (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
-    ::
-        %'delete-folder'
-      =/  foldername=@t  (need (get-key:kv 'foldername' args))
-      ::  Delete the directory using tarball API
-      =.  ball  (~(del ba:tarball ball) ball-path foldername)
-      (give-simple-payload:io [[303 ~[['location' (crip redirect-url)]]] ~])
-    ==
+    (handle-form-actions:ball-routes ball-path args)
   ==
 --
