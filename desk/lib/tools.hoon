@@ -1,5 +1,5 @@
 /-  claude
-/+  io=sailboxio, telegram, pytz, random, time, sailbox, server, tarball, json-utils
+/+  io=sailboxio, telegram, pytz, random, time, sailbox, server, tarball, json-utils, alarms
 |%
 ::  Protocol-agnostic tool interface
 ::  This library provides a unified tool definition and execution layer
@@ -96,12 +96,15 @@
           ~['message']
           tool-send-telegram
       ==
-      :*  'schedule_telegram'
-          'Schedule a telegram notification for a specific time or duration from now'
+      :*  'create_alarm'
+          'Schedule any MCP tool to execute at a specific time or duration from now, with optional repeating'
           %-  ~(gas by *(map @t parameter-def))
-          :~  :-  'message'
+          :~  :-  'tool_name'
               ^-  parameter-def
-              [%string 'Message to send']
+              [%string 'Name of the MCP tool to execute (e.g. send_telegram, web_search)']
+              :-  'tool_arguments'
+              ^-  parameter-def
+              [%object 'JSON object containing arguments for the tool']
               :-  'time'
               ^-  parameter-def
               [%string 'Time in ISO format: YYYY-MM-DDTHH:MM:SS (optional if duration provided)']
@@ -111,18 +114,27 @@
               :-  'duration'
               ^-  parameter-def
               [%string 'ISO-8601 duration from now (e.g. PT5M for 5 minutes, PT2H for 2 hours, P1DT2H for 1 day 2 hours) (optional if time provided)']
+              :-  'repeat_count'
+              ^-  parameter-def
+              [%number 'Number of times to repeat the tool execution (optional, defaults to 1)']
+              :-  'interval'
+              ^-  parameter-def
+              [%string 'ISO-8601 duration between repeats (e.g. PT5M for 5 minutes) (required if repeat_count > 1)']
           ==
-          ~['message']
-          tool-schedule-telegram
+          ~['tool_name' 'tool_arguments']
+          tool-create-alarm
       ==
       :*  'rename_chat'
-          'Rename the current chat conversation'
+          'Rename a chat conversation'
           %-  ~(gas by *(map @t parameter-def))
           :~  :-  'title'
               ^-  parameter-def
               [%string 'New title for the chat (3-5 words)']
+              :-  'chat_id'
+              ^-  parameter-def
+              [%string 'Chat ID in hex format (e.g. 0x1234.5678)']
           ==
-          ~['title']
+          ~['title' 'chat_id']
           tool-rename-chat
       ==
       :*  'web_search'
@@ -336,17 +348,20 @@
     (send-message:telegram bot-token chat-id message)
   (pure:m [%text 'Telegram message sent'])
 ::
-++  tool-schedule-telegram
+++  tool-create-alarm
   ^-  tool-handler
   |=  arguments=(map @t json)
   =/  m  (fiber:io ,tool-result)
   ^-  form:m
-  ::  Parse required message
-  =/  message=@t
+  ::  Parse required tool_name and tool_arguments
+  =/  parsed
     %.  [%o arguments]
     %-  ot:dejs:format
-    :~  ['message' so:dejs:format]
+    :~  ['tool_name' so:dejs:format]
+        ['tool_arguments' same]
     ==
+  =/  tool-name=@t  -.parsed
+  =/  tool-arguments=json  +.parsed
   ::  Get optional time and duration
   =/  time-str=(unit @t)
     =/  time-json=(unit json)  (~(get by arguments) 'time')
@@ -363,6 +378,21 @@
     ?~  dur-json  ~
     ?.  ?=([%s *] u.dur-json)  ~
     `p.u.dur-json
+  ::  Get optional repeat parameters (default to 1 and ~s0)
+  =/  repeat-count=@ud
+    =/  count-json=(unit json)  (~(get by arguments) 'repeat_count')
+    ?~  count-json  1
+    ?.  ?=([%n *] u.count-json)  1
+    (fall (rush p.u.count-json dem) 1)
+  =/  interval-str=(unit @t)
+    =/  interval-json=(unit json)  (~(get by arguments) 'interval')
+    ?~  interval-json  ~
+    ?.  ?=([%s *] u.interval-json)  ~
+    `p.u.interval-json
+  ::  Parse interval if provided, default to ~s0
+  =/  interval=@dr
+    ?~  interval-str  ~s0
+    (fall (parse-duration:telegram u.interval-str) ~s0)
   ::  Determine wake time
   ;<  =bowl:gall  bind:m  get-bowl:io
   =/  wake-time=(unit @da)
@@ -381,34 +411,40 @@
     ~
   ?~  wake-time
     (pure:m [%error 'Invalid time specification. Provide either duration or time+timezone'])
+  ::  Validate repeat parameters
+  ?:  ?&  (gth repeat-count 1)
+          =(interval ~s0)
+      ==
+    (pure:m [%error 'interval required when repeat_count is greater than 1'])
+  ::  Create recurrence rule and start alarm
+  =/  rule=recurrence-rule:alarms  [u.wake-time repeat-count interval %.y]
   ::  Initialize alarm state (creates process file)
-  ;<  ~  bind:m  (init-alarm-state:telegram u.wake-time message)
+  ;<  ~  bind:m  (init-alarm-state:alarms u.wake-time tool-name tool-arguments repeat-count interval %.y)
   ::  Fire-and-forget the alarm fiber (sailbox manages lifecycle)
   ;<  ~  bind:m
     %:  fiber-throw:io
       (crip "alarm-{(scow %da u.wake-time)}")
-      set-alarm+!>([u.wake-time message])
+      set-alarm+!>([u.wake-time tool-name tool-arguments repeat-count interval])
     ==
-  (pure:m [%text 'Telegram message scheduled'])
+  (pure:m [%text (crip "Alarm created for tool: {(trip tool-name)}")])
 ::
 ++  tool-rename-chat
   ^-  tool-handler
   |=  arguments=(map @t json)
   =/  m  (fiber:io ,tool-result)
   ^-  form:m
-  =/  title=@t
+  =/  parsed
     %.  [%o arguments]
     %-  ot:dejs:format
     :~  ['title' so:dejs:format]
+        ['chat_id' so:dejs:format]
     ==
-  ::  Extract chat-id from _chat_id argument
-  =/  chat-id=(unit @ux)
-    =/  chat-id-json=(unit json)  (~(get by arguments) '_chat_id')
-    ?~  chat-id-json  ~
-    ?.  ?=([%s *] u.chat-id-json)  ~
-    (slaw %ux p.u.chat-id-json)
+  =/  title=@t  -.parsed
+  =/  chat-id-str=@t  +.parsed
+  ::  Parse chat-id from hex string
+  =/  chat-id=(unit @ux)  (slaw %ux chat-id-str)
   ?~  chat-id
-    (pure:m [%error 'No chat context provided'])
+    (pure:m [%error 'Invalid chat_id format. Expected hex format like 0x1234.5678'])
   ::  Update chat name in ball
   ;<  ball=ball:tarball  bind:m  get-state:io
   =/  chat=(unit chat:claude)

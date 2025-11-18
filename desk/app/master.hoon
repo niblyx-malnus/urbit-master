@@ -1,6 +1,6 @@
 /+  dbug, sailbox, io=sailboxio, server,
     ui-master, ui-claude, ui-ball, telegram,
-    sse=sse-helpers, tarball
+    sse=sse-helpers, tarball, alarms, tools
 /=  master-routes  /lib/routes/master
 /=  telegram-routes  /lib/routes/telegram
 /=  s3-routes  /lib/routes/s3
@@ -103,9 +103,19 @@
     ;<  ~  bind:m  (put-cage:io /config 'bindings.eyre-bindings' [%eyre-bindings !>(updated-bindings)])
     (set-bindings:io updated-bindings)
     ::
+      %execute-scheduled-tool
+    =+  !<([tool-name=@t tool-arguments=json] vase)
+    =/  args-map=(map @t json)
+      ?:  ?=([%o *] tool-arguments)  p.tool-arguments
+      ~
+    ;<  result=tool-result:tools  bind:m  (execute-tool:tools tool-name args-map)
+    ~&  >>  "Scheduled tool {<tool-name>} executed: {<result>}"
+    (pure:m ~)
+    ::
       %set-alarm
-    =+  !<([wake-time=@da message=@t] vase)
-    (run-alarm:telegram wake-time message)
+    =+  !<([wake-time=@da tool-name=@t tool-arguments=json repeat-count=@ud interval=@dr] vase)
+    =/  rule=recurrence-rule:alarms  [wake-time repeat-count interval %.y]
+    (run-alarm:alarms rule tool-name tool-arguments)
     ::
       %handle-http-request
     =+  !<(req=inbound-request:eyre vase)

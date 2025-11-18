@@ -835,8 +835,6 @@
     :: ?<  ?=([%eyre *] sap.bowl) :: Eyre Security
     ?+    path  (on-watch:def path)
         [%fiber-result @ ~]
-      =/  =proc:fiber  (~(got by proc.pipe) i.t.path)
-      ?>  =(src.bowl src.poke.proc)
       [~ this]
       ::
         [%fiber @ *]

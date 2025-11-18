@@ -280,8 +280,6 @@
         ['messages' a+messages-json]
         ['tools' a+claude-tools]
     ==
-  ~&  >  'Request body being sent to Claude:'
-  ~&  >  body
   =/  body-octs=octs  (as-octs:mimes:html body)
   ::  Build request with auth header
   =/  =request:http
@@ -301,9 +299,6 @@
   =/  jon=(unit json)  (de:json:html body)
   ?~  jon
     (pure:m [(crip "Error: Could not parse Claude response: {(trip body)}") chat])
-  ::  Debug: log the response
-  ~&  >  'Claude API Response:'
-  ~&  >  (en:json:html u.jon)
   ::  Check if response is an error
   =/  error-check
     %-  mule
@@ -443,12 +438,12 @@
       ::  Recursively call Claude again with all tool results
       (send-message api-key ai-model chat-with-result chats user-timezone)
     =/  [tool-id=@t tool-name=@t tool-input=json]  i.remaining-tools
-    ::  Call tool directly from lib/tools with chat context
+    ::  Call tool directly from lib/tools
     ~&  >  "Calling tool '{<tool-name>}' for chat-id: {<id.current-chat>}"
-    ::  Extract arguments from tool-input JSON and add chat_id
+    ::  Extract arguments from tool-input JSON
     =/  arguments=(map @t json)
       ?.  ?=([%o *] tool-input)  ~
-      (~(put by p.tool-input) '_chat_id' s+(scot %ux id.current-chat))
+      p.tool-input
     ::  Execute tool directly
     ;<  result=tool-result:tools  bind:m  (execute-tool:tools tool-name arguments)
     ::  Extract text from result
