@@ -388,6 +388,14 @@
     ?~  nod=(~(get of b) pax)
       ~
     ~(tap in ~(key by contents.u.nod))
+  ::  List all subdirectories in a directory
+  ::
+  ++  lss
+    |=  pax=path
+    ^-  (list @ta)
+    ?~  dap=(dap pax)
+      ~
+    ~(tap in ~(key by dir.u.dap))
   ::  Get or crash
   ::
   ++  got
