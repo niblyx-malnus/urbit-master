@@ -82,13 +82,10 @@
   |=  chat-id=(unit @ux)
   =/  m  (fiber:io ,~)
   ^-  form:m
-  ;<  ball=ball:tarball  bind:m  get-state:io
-  =/  txt-content=wain
+  =/  =wain
     ?~  chat-id  ~
     ~[(crip (hexn:sailbox u.chat-id))]
-  ;<  ~  bind:m
-    (put-cage:io /claude 'active-chat.txt' [%txt !>(txt-content)])
-  (pure:m ~)
+  (put-cage:io /claude 'active-chat.txt' [%txt !>(wain)])
 ::
 ::  POST /master/claude/{id} - Send message to Claude chat
 ::
