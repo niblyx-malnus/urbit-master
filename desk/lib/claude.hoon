@@ -222,7 +222,7 @@
     %+  turn  history
     |=(msg=message:claude (count-message-chars msg))
   =/  context-truncated=?  !=(total-messages context-messages)
-  =/  chat-id-text=@t  (scot %ux id.chat)
+  =/  chat-id-text=@t  (crip (hexn:sailbox id.chat))
   ::  Build chat range string showing which messages from which chats
   =/  chat-ranges=tape
     ?~  history  "no messages"
@@ -236,6 +236,31 @@
     =/  first-da=@da  (from-unix-ms:chrono:userlib first-time)
     =/  last-da=@da  (from-unix-ms:chrono:userlib last-time)
     "{(en:datetime-local:iso-8601 first-da)} to {(en:datetime-local:iso-8601 last-da)} UTC"
+  ::  Open loops system guidance
+  =/  open-loops-guide=@t
+    %+  rap  3
+    :~  '\0a\0a'
+        'OPEN LOOPS SYSTEM: '
+        'You have access to an "open loops" task tracking system with two key purposes:\0a'
+        '1. FOR YOURSELF: Track your own intentions, planned work, open questions, and things to circle back to. Use your chat-id ('
+        chat-id-text
+        ') as your context name for all loops you create for yourself.\0a'
+        '2. FOR THE USER: Proactively capture the user\'s stated intentions, goals, or duties as open loops. When you notice the user mentioning something they need to do, offer to track it.\0a'
+        'Label liberally but judiciously. Capture rich implied context about various aspects of the open loop using labels.' 
+        '\0a'
+        'LABEL TAXONOMY (use colon-separated namespaces):\0a'
+        '- energy:low / energy:medium / energy:high - cognitive load required\0a'
+        '- focus:shallow / focus:deep - attention depth needed\0a'
+        '- time:5m / time:30m / time:2h / time:1d / time:1w - estimated duration\0a'
+        '- type:bug / type:feature / type:refactor / type:docs / type:research / type:admin\0a'
+        '- status:blocked / status:waiting - for tasks that cannot proceed\0a'
+        '- domain:hoon / domain:urbit / domain:web / domain:learning / etc. - subject area\0a'
+        'You can invent new fields and evolve these patterns as needed. Multiple labels are encouraged.\0a'
+        '\0a'
+        'BEST-BY vs URGENCY: Instead of labeling something "urgent", ask the user "When would you like this done by?" and set a best-by date if they provide one.\0a'
+        '\0a'
+        'CONTEXT NAMING: Use meaningful context names - typically the username for user tasks, your chat-id for your own work, or project/domain names for shared work.'
+    ==
   =/  system-prompt=@t
     %+  rap  3
     :~  'REAL-TIME SYSTEM INFORMATION (updated with every message): '
@@ -270,6 +295,7 @@
         '. '
         'INSTRUCTIONS: '
         'Use the rename_chat tool ONCE after the first message to give this conversation a descriptive 3-5 word title, and then only use it again at the user\'s explicit request thereafter.'
+        open-loops-guide
     ==
   =/  body=@t
     %-  en:json:html

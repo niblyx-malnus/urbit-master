@@ -1,5 +1,5 @@
 /-  claude
-/+  io=sailboxio, telegram, pytz, random, time, sailbox, server, tarball, json-utils, alarms
+/+  io=sailboxio, telegram, pytz, random, time, sailbox, server, tarball, json-utils, alarms, open-loops, iso-8601
 |%
 ::  Protocol-agnostic tool interface
 ::  This library provides a unified tool definition and execution layer
@@ -172,6 +172,156 @@
           ==
           ~['mount_point']
           tool-desk-version
+      ==
+      :*  'list_loop_contexts'
+          'List all available open-loops contexts (e.g. urbit, learning, personal)'
+          ~
+          ~
+          tool-list-loop-contexts
+      ==
+      :*  'open_loop'
+          'Create loops (pass array of specs, even for single loop)'
+          %-  ~(gas by *(map @t parameter-def))
+          :~  :-  'context'
+              ^-  parameter-def
+              [%string 'Context name']
+              :-  'specs'
+              ^-  parameter-def
+              [%array 'Array of loop specs with text, labels (array), and best_by (optional ISO date string)']
+          ==
+          ~['context' 'specs']
+          tool-batch-open
+      ==
+      :*  'close_loop'
+          'Close loops (pass array of IDs, even for single loop)'
+          %-  ~(gas by *(map @t parameter-def))
+          :~  :-  'context'
+              ^-  parameter-def
+              [%string 'Context name']
+              :-  'ids'
+              ^-  parameter-def
+              [%array 'Array of loop IDs to close']
+          ==
+          ~['context' 'ids']
+          tool-batch-close
+      ==
+      :*  'reopen_loop'
+          'Reopen closed loops (pass array of IDs, even for single loop)'
+          %-  ~(gas by *(map @t parameter-def))
+          :~  :-  'context'
+              ^-  parameter-def
+              [%string 'Context name']
+              :-  'ids'
+              ^-  parameter-def
+              [%array 'Array of loop IDs to reopen']
+          ==
+          ~['context' 'ids']
+          tool-batch-reopen
+      ==
+      :*  'delete_loop'
+          'Delete closed loops (pass array of IDs, even for single loop)'
+          %-  ~(gas by *(map @t parameter-def))
+          :~  :-  'context'
+              ^-  parameter-def
+              [%string 'Context name']
+              :-  'ids'
+              ^-  parameter-def
+              [%array 'Array of loop IDs to delete']
+          ==
+          ~['context' 'ids']
+          tool-batch-delete
+      ==
+      :*  'update_labels'
+          'Replace all labels on multiple loops (pass arrays of IDs and new labels)'
+          %-  ~(gas by *(map @t parameter-def))
+          :~  :-  'context'
+              ^-  parameter-def
+              [%string 'Context name']
+              :-  'ids'
+              ^-  parameter-def
+              [%array 'Array of loop IDs']
+              :-  'labels'
+              ^-  parameter-def
+              [%array 'Array of labels to set (replaces all existing labels)']
+          ==
+          ~['context' 'ids' 'labels']
+          tool-batch-update-labels
+      ==
+      :*  'add_labels'
+          'Add labels to multiple loops (pass arrays of IDs and labels)'
+          %-  ~(gas by *(map @t parameter-def))
+          :~  :-  'context'
+              ^-  parameter-def
+              [%string 'Context name']
+              :-  'ids'
+              ^-  parameter-def
+              [%array 'Array of loop IDs']
+              :-  'labels'
+              ^-  parameter-def
+              [%array 'Array of labels to add to each loop']
+          ==
+          ~['context' 'ids' 'labels']
+          tool-batch-add-labels
+      ==
+      :*  'remove_labels'
+          'Remove labels from multiple loops (pass arrays of IDs and labels)'
+          %-  ~(gas by *(map @t parameter-def))
+          :~  :-  'context'
+              ^-  parameter-def
+              [%string 'Context name']
+              :-  'ids'
+              ^-  parameter-def
+              [%array 'Array of loop IDs']
+              :-  'labels'
+              ^-  parameter-def
+              [%array 'Array of labels to remove from each loop']
+          ==
+          ~['context' 'ids' 'labels']
+          tool-batch-remove-labels
+      ==
+      :*  'list_loops'
+          'List loops with optional filters (state, labels, search text, search labels)'
+          %-  ~(gas by *(map @t parameter-def))
+          :~  :-  'context'
+              ^-  parameter-def
+              [%string 'Context name']
+              :-  'state'
+              ^-  parameter-def
+              [%string 'Filter by state: "open", "closed", or "all" (default: "open")']
+              :-  'labels'
+              ^-  parameter-def
+              [%array 'Filter by exact labels (returns loops with ANY of these labels)']
+              :-  'search_text'
+              ^-  parameter-def
+              [%string 'Regex pattern to search loop text']
+              :-  'search_labels'
+              ^-  parameter-def
+              [%string 'Regex pattern to search loop labels']
+          ==
+          ~['context']
+          tool-list-loops
+      ==
+      :*  'update_loop'
+          'Update loop text, labels, or best-by date'
+          %-  ~(gas by *(map @t parameter-def))
+          :~  :-  'context'
+              ^-  parameter-def
+              [%string 'Context name']
+              :-  'id'
+              ^-  parameter-def
+              [%number 'Loop ID']
+              :-  'text'
+              ^-  parameter-def
+              [%string 'New text (optional)']
+              :-  'labels'
+              ^-  parameter-def
+              [%array 'New labels array (optional, replaces all labels)']
+              :-  'best_by'
+              ^-  parameter-def
+              [%string 'New best-by date in ISO format YYYY-MM-DD (optional, use empty string to clear)']
+          ==
+          ~['context' 'id']
+          tool-update-loop
       ==
   ==
 ::
@@ -754,4 +904,403 @@
     ==
   ;<  version=cass:clay  bind:m  (scry:io cass:clay %cw mount-point ~)
   (pure:m [%text (crip "Desk version: {<ud.version>}")])
+::
+++  tool-list-loop-contexts
+  ^-  tool-handler
+  |=  arguments=(map @t json)
+  =/  m  (fiber:io ,tool-result)
+  ^-  form:m
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  contexts=(list @t)  (find-all-contexts ball /tools/open-loops ~)
+  (pure:m [%text (crip (format-contexts contexts))])
+::
+++  find-all-contexts
+  |=  [ball=ball:tarball base-path=path prefix=tape]
+  ^-  (list @t)
+  ::  List files in current directory
+  =/  files=(list @ta)
+    (~(lis ba:tarball ball) base-path)
+  =/  file-contexts=(list @t)
+    %+  murn  files
+    |=  filename=@ta
+    ::  Check if ends with '.open-loops'
+    =/  name=tape  (trip filename)
+    =/  ext=tape  ".open-loops"
+    ?.  =(ext (slag (sub (lent name) (lent ext)) name))
+      ~
+    ::  Extract context name (filename without extension)
+    =/  context-name=tape  (scag (sub (lent name) (lent ext)) name)
+    ::  Prepend prefix if any
+    `(crip ?~(prefix context-name "{prefix}/{context-name}"))
+  ::  List subdirectories
+  =/  dirs=(list @ta)
+    (~(lss ba:tarball ball) base-path)
+  ::  Recursively process each subdirectory
+  =/  dir-contexts=(list @t)
+    %-  zing
+    %+  turn  dirs
+    |=  dirname=@ta
+    =/  new-prefix=tape
+      ?~(prefix (trip dirname) "{prefix}/{(trip dirname)}")
+    (find-all-contexts ball (weld base-path /[dirname]) new-prefix)
+  ::  Combine file and directory results
+  (weld file-contexts dir-contexts)
+++  format-context-items
+  |=  contexts=(list @t)
+  ^-  tape
+  ?~  contexts  ""
+  =/  rest=tape  $(contexts t.contexts)
+  "- {(trip i.contexts)}\0a{rest}"
+::
+++  format-contexts
+  |=  contexts=(list @t)
+  ^-  tape
+  ?~  contexts  "No loop contexts found"
+  =/  count=@ud  (lent contexts)
+  =/  header=tape  "Loop contexts ({(a-co:co count)}):\0a"
+  =/  items=tape  (format-context-items contexts)
+  "{header}{items}"
+::
+++  parse-iso-date
+  |=  text=@t
+  ^-  @da
+  ::  Parse YYYY-MM-DD to @da using iso-8601 library
+  =/  [[a=? y=@ud] m=@ud d=@ud]  (de:date-input:iso-8601 text)
+  (year [a y] m d 0 0 0 ~)
+::
+++  context-to-path
+  |=  context=@ta
+  ^-  [pax=path filename=@ta]
+  ::  Parse context as path (prepend '/' for stap)
+  =/  context-path=path
+    (rash (crip (weld "/" (trip context))) stap)
+  ::  Split into parent directory and filename
+  ?~  context-path
+    [/tools/open-loops context]  ::  empty, shouldn't happen
+  ?~  t.context-path
+    [/tools/open-loops i.context-path]  ::  just a filename, no directory
+  ::  Multiple parts: all but last are directories
+  =/  dirs=(list @ta)  (snip `(list @ta)`context-path)
+  =/  filename=@ta  (rear context-path)
+  [(weld /tools/open-loops dirs) filename]
+::
+++  tool-list-loops
+  ^-  tool-handler
+  |=  arguments=(map @t json)
+  =/  m  (fiber:io ,tool-result)
+  ^-  form:m
+  =/  context=@tas
+    %.  [%o arguments]
+    %-  ot:dejs:format
+    :~  ['context' so:dejs:format]
+    ==
+  =/  state-filter=@t
+    =/  state-json=(unit json)  (~(get by arguments) 'state')
+    ?~  state-json  'open'
+    (so:dejs:format u.state-json)
+  =/  [pax=path filename=@ta]  (context-to-path context)
+  =/  full-filename=@ta  (crip "{(trip filename)}.open-loops")
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  =loops:open-loops
+    (~(got-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+  =/  loop-list=(list [@ud loop:open-loops])
+    ?+  state-filter  ~(list-open lo:open-loops loops)
+      %open    ~(list-open lo:open-loops loops)
+      %closed  ~(list-closed lo:open-loops loops)
+      %all     (weld ~(list-open lo:open-loops loops) ~(list-closed lo:open-loops loops))
+    ==
+  ::  Apply label filter (exact match)
+  =/  filtered-list=(list [@ud loop:open-loops])
+    =/  labels-json=(unit json)  (~(get by arguments) 'labels')
+    ?~  labels-json  loop-list
+    =/  labels=(list @t)  ((ar so):dejs:format u.labels-json)
+    |-  ^-  (list [@ud loop:open-loops])
+    ?~  labels  loop-list
+    =/  with-label=(list [@ud loop:open-loops])
+      (~(filter-by-label lo:open-loops loops) loop-list i.labels)
+    $(labels t.labels, loop-list with-label)
+  ::  Apply text search (regex)
+  =.  filtered-list
+    =/  search-text-json=(unit json)  (~(get by arguments) 'search_text')
+    ?~  search-text-json  filtered-list
+    =/  pattern=@t  (so:dejs:format u.search-text-json)
+    (~(search-text lo:open-loops loops) filtered-list pattern)
+  ::  Apply label search (regex)
+  =.  filtered-list
+    =/  search-labels-json=(unit json)  (~(get by arguments) 'search_labels')
+    ?~  search-labels-json  filtered-list
+    =/  pattern=@t  (so:dejs:format u.search-labels-json)
+    (~(search-labels lo:open-loops loops) filtered-list pattern)
+  (pure:m [%text (crip (format-loop-list filtered-list state-filter))])
+::
+++  format-loop-items
+  |=  loop-list=(list [@ud loop:open-loops])
+  ^-  tape
+  ?~  loop-list  ""
+  =/  [id=@ud =loop:open-loops]  i.loop-list
+  =/  labels-str=tape
+    =/  label-list=(list @t)  ~(tap in labels.loop)
+    |-  ^-  tape
+    ?~  label-list  ""
+    =/  rest=tape  $(label-list t.label-list)
+    "{(trip i.label-list)} {rest}"
+  =/  item=tape
+    ?~  labels-str
+      "#{(a-co:co id)}: {(trip text.loop)}\0a"
+    "#{(a-co:co id)}: {(trip text.loop)} [{labels-str}]\0a"
+  =/  rest=tape  $(loop-list t.loop-list)
+  "{item}{rest}"
+::
+++  format-loop-list
+  |=  [loop-list=(list [@ud loop:open-loops]) state=@t]
+  ^-  tape
+  ?~  loop-list
+    "{(trip state)} loops: (none)"
+  =/  count=@ud  (lent loop-list)
+  =/  header=tape  "{(trip state)} loops ({(a-co:co count)}):\0a"
+  =/  items=tape  (format-loop-items loop-list)
+  "{header}{items}"
+::
+++  tool-update-loop
+  ^-  tool-handler
+  |=  arguments=(map @t json)
+  =/  m  (fiber:io ,tool-result)
+  ^-  form:m
+  =/  context=@tas
+    %.  [%o arguments]
+    %-  ot:dejs:format
+    :~  ['context' so:dejs:format]
+    ==
+  =/  id=@ud
+    %.  [%o arguments]
+    %-  ot:dejs:format
+    :~  ['id' ni:dejs:format]
+    ==
+  =/  [pax=path filename=@ta]  (context-to-path context)
+  =/  full-filename=@ta  (crip "{(trip filename)}.open-loops")
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  =loops:open-loops
+    (~(got-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+  ;<  =bowl:gall  bind:m  get-bowl:io
+  =/  updated-loops=loops:open-loops  loops
+  ::  Update text if provided
+  =/  new-text-json=(unit json)  (~(get by arguments) 'text')
+  =?  updated-loops  ?=(^ new-text-json)
+    =/  new-text=@t  (so:dejs:format u.new-text-json)
+    (~(update-text lo:open-loops updated-loops) id new-text now.bowl)
+  ::  Update labels if provided
+  =/  new-labels=(unit json)  (~(get by arguments) 'labels')
+  =?  updated-loops  ?=(^ new-labels)
+    =/  labels-set=(set @t)
+      %-  ~(gas in *(set @t))
+      ((ar so):dejs:format u.new-labels)
+    (~(update-labels lo:open-loops updated-loops) id labels-set now.bowl)
+  ::  Update best-by if provided
+  =/  new-best-by=(unit json)  (~(get by arguments) 'best_by')
+  =?  updated-loops  ?=(^ new-best-by)
+    =/  bb-text=@t  (so:dejs:format u.new-best-by)
+    =/  bb-date=(unit @da)
+      ?:  =(bb-text '')  ~
+      `(parse-iso-date bb-text)
+    (~(update-best-by lo:open-loops updated-loops) id bb-date now.bowl)
+  ::  Save
+  ;<  ~  bind:m
+    (put-cage:io pax full-filename [%open-loops !>(updated-loops)])
+  (pure:m [%text (crip "Updated loop #{(a-co:co id)} in {(trip context)}")])
+::
+++  tool-batch-open
+  ^-  tool-handler
+  |=  arguments=(map @t json)
+  =/  m  (fiber:io ,tool-result)
+  ^-  form:m
+  =/  context=@tas
+    %.  [%o arguments]
+    %-  ot:dejs:format
+    :~  ['context' so:dejs:format]
+    ==
+  =/  specs-json=json  (~(got by arguments) 'specs')
+  =/  spec-parser
+    |=  j=json
+    ^-  [text=@t labels=(set @t) best-by=(unit @da)]
+    =/  obj=(map @t json)  ((om:dejs:format same) j)
+    =/  text=@t  (so:dejs:format (~(got by obj) 'text'))
+    =/  labels=(set @t)
+      %-  ~(gas in *(set @t))
+      ((ar so):dejs:format (~(got by obj) 'labels'))
+    =/  best-by=(unit @da)
+      =/  bb-json=(unit json)  (~(get by obj) 'best_by')
+      ?~  bb-json  ~
+      ?~  u.bb-json  ~
+      =/  bb-text=@t  (so:dejs:format u.bb-json)
+      ?:  =(bb-text '')  ~
+      `(parse-iso-date bb-text)
+    [text labels best-by]
+  =/  specs=(list [text=@t labels=(set @t) best-by=(unit @da)])
+    ((ar:dejs:format spec-parser) specs-json)
+  =/  [pax=path filename=@ta]  (context-to-path context)
+  =/  full-filename=@ta  (crip "{(trip filename)}.open-loops")
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  =loops:open-loops
+    =/  existing=(unit loops:open-loops)
+      (~(get-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+    ?^  existing  u.existing
+    [0 ~ ~]
+  ;<  =bowl:gall  bind:m  get-bowl:io
+  =/  updated-loops=loops:open-loops
+    (~(batch-open lo:open-loops loops) specs now.bowl)
+  ;<  ~  bind:m
+    (put-cage:io pax full-filename [%open-loops !>(updated-loops)])
+  (pure:m [%text (crip "Opened {(a-co:co (lent specs))} loops in {(trip context)}")])
+::
+++  tool-batch-close
+  ^-  tool-handler
+  |=  arguments=(map @t json)
+  =/  m  (fiber:io ,tool-result)
+  ^-  form:m
+  =/  context=@tas
+    %.  [%o arguments]
+    %-  ot:dejs:format
+    :~  ['context' so:dejs:format]
+    ==
+  =/  ids=(list @ud)
+    ((ar ni):dejs:format (~(got by arguments) 'ids'))
+  =/  [pax=path filename=@ta]  (context-to-path context)
+  =/  full-filename=@ta  (crip "{(trip filename)}.open-loops")
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  =loops:open-loops
+    (~(got-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+  ;<  =bowl:gall  bind:m  get-bowl:io
+  =/  updated-loops=loops:open-loops
+    (~(batch-close lo:open-loops loops) ids now.bowl)
+  ;<  ~  bind:m
+    (put-cage:io pax full-filename [%open-loops !>(updated-loops)])
+  (pure:m [%text (crip "Closed {(a-co:co (lent ids))} loops in {(trip context)}")])
+::
+++  tool-batch-reopen
+  ^-  tool-handler
+  |=  arguments=(map @t json)
+  =/  m  (fiber:io ,tool-result)
+  ^-  form:m
+  =/  context=@tas
+    %.  [%o arguments]
+    %-  ot:dejs:format
+    :~  ['context' so:dejs:format]
+    ==
+  =/  ids=(list @ud)
+    ((ar ni):dejs:format (~(got by arguments) 'ids'))
+  =/  [pax=path filename=@ta]  (context-to-path context)
+  =/  full-filename=@ta  (crip "{(trip filename)}.open-loops")
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  =loops:open-loops
+    (~(got-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+  ;<  =bowl:gall  bind:m  get-bowl:io
+  =/  updated-loops=loops:open-loops
+    (~(batch-reopen lo:open-loops loops) ids now.bowl)
+  ;<  ~  bind:m
+    (put-cage:io pax full-filename [%open-loops !>(updated-loops)])
+  (pure:m [%text (crip "Reopened {(a-co:co (lent ids))} loops in {(trip context)}")])
+::
+++  tool-batch-delete
+  ^-  tool-handler
+  |=  arguments=(map @t json)
+  =/  m  (fiber:io ,tool-result)
+  ^-  form:m
+  =/  context=@tas
+    %.  [%o arguments]
+    %-  ot:dejs:format
+    :~  ['context' so:dejs:format]
+    ==
+  =/  ids=(list @ud)
+    ((ar ni):dejs:format (~(got by arguments) 'ids'))
+  =/  [pax=path filename=@ta]  (context-to-path context)
+  =/  full-filename=@ta  (crip "{(trip filename)}.open-loops")
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  =loops:open-loops
+    (~(got-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+  =/  updated-loops=loops:open-loops
+    (~(batch-delete lo:open-loops loops) ids)
+  ;<  ~  bind:m
+    (put-cage:io pax full-filename [%open-loops !>(updated-loops)])
+  (pure:m [%text (crip "Deleted {(a-co:co (lent ids))} loops from {(trip context)}")])
+::
+++  tool-batch-update-labels
+  ^-  tool-handler
+  |=  arguments=(map @t json)
+  =/  m  (fiber:io ,tool-result)
+  ^-  form:m
+  =/  context=@tas
+    %.  [%o arguments]
+    %-  ot:dejs:format
+    :~  ['context' so:dejs:format]
+    ==
+  =/  ids=(list @ud)
+    ((ar ni):dejs:format (~(got by arguments) 'ids'))
+  =/  labels=(set @t)
+    %-  ~(gas in *(set @t))
+    ((ar so):dejs:format (~(got by arguments) 'labels'))
+  =/  [pax=path filename=@ta]  (context-to-path context)
+  =/  full-filename=@ta  (crip "{(trip filename)}.open-loops")
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  =loops:open-loops
+    (~(got-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+  ;<  =bowl:gall  bind:m  get-bowl:io
+  =/  updated-loops=loops:open-loops
+    (~(batch-update-labels lo:open-loops loops) ids labels now.bowl)
+  ;<  ~  bind:m
+    (put-cage:io pax full-filename [%open-loops !>(updated-loops)])
+  (pure:m [%text (crip "Updated labels on {(a-co:co (lent ids))} loops in {(trip context)}")])
+::
+++  tool-batch-add-labels
+  ^-  tool-handler
+  |=  arguments=(map @t json)
+  =/  m  (fiber:io ,tool-result)
+  ^-  form:m
+  =/  context=@tas
+    %.  [%o arguments]
+    %-  ot:dejs:format
+    :~  ['context' so:dejs:format]
+    ==
+  =/  ids=(list @ud)
+    ((ar ni):dejs:format (~(got by arguments) 'ids'))
+  =/  labels=(set @t)
+    %-  ~(gas in *(set @t))
+    ((ar so):dejs:format (~(got by arguments) 'labels'))
+  =/  [pax=path filename=@ta]  (context-to-path context)
+  =/  full-filename=@ta  (crip "{(trip filename)}.open-loops")
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  =loops:open-loops
+    (~(got-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+  ;<  =bowl:gall  bind:m  get-bowl:io
+  =/  updated-loops=loops:open-loops
+    (~(batch-add-labels lo:open-loops loops) ids labels now.bowl)
+  ;<  ~  bind:m
+    (put-cage:io pax full-filename [%open-loops !>(updated-loops)])
+  (pure:m [%text (crip "Added {(a-co:co ~(wyt in labels))} labels to {(a-co:co (lent ids))} loops in {(trip context)}")])
+::
+++  tool-batch-remove-labels
+  ^-  tool-handler
+  |=  arguments=(map @t json)
+  =/  m  (fiber:io ,tool-result)
+  ^-  form:m
+  =/  context=@tas
+    %.  [%o arguments]
+    %-  ot:dejs:format
+    :~  ['context' so:dejs:format]
+    ==
+  =/  ids=(list @ud)
+    ((ar ni):dejs:format (~(got by arguments) 'ids'))
+  =/  labels=(set @t)
+    %-  ~(gas in *(set @t))
+    ((ar so):dejs:format (~(got by arguments) 'labels'))
+  =/  [pax=path filename=@ta]  (context-to-path context)
+  =/  full-filename=@ta  (crip "{(trip filename)}.open-loops")
+  ;<  ball=ball:tarball  bind:m  get-state:io
+  =/  =loops:open-loops
+    (~(got-cage-as ba:tarball ball) pax full-filename loops:open-loops)
+  ;<  =bowl:gall  bind:m  get-bowl:io
+  =/  updated-loops=loops:open-loops
+    (~(batch-remove-labels lo:open-loops loops) ids labels now.bowl)
+  ;<  ~  bind:m
+    (put-cage:io pax full-filename [%open-loops !>(updated-loops)])
+  (pure:m [%text (crip "Removed {(a-co:co ~(wyt in labels))} labels from {(a-co:co (lent ids))} loops in {(trip context)}")])
 --

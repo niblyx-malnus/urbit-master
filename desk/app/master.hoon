@@ -1,6 +1,6 @@
 /+  dbug, sailbox, io=sailboxio, server,
     ui-master, ui-claude, ui-ball, telegram,
-    sse=sse-helpers, tarball, alarms, tools
+    sse=sse-helpers, tarball, alarms, tools, open-loops
 /=  master-routes  /lib/routes/master
 /=  telegram-routes  /lib/routes/telegram
 /=  s3-routes  /lib/routes/s3
@@ -9,6 +9,7 @@
 /=  t-  /tests/tarball
 /=  m-  /mar/eyre/bindings
 /=  m-  /mar/claude/chat
+/=  m-  /mar/open-loops
 =>
   |%
   +$  card  card:sailbox
