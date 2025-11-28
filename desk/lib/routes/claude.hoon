@@ -27,9 +27,8 @@
   ::  Get the content
   =/  maybe-content=(unit content:tarball)  (get:ba-core /claude/chats name)
   ?~  maybe-content  ~
-  ::  Must be a cage
-  ?.  ?=([%& *] data.u.maybe-content)  ~
-  =/  =cage  p.data.u.maybe-content
+  ::  Extract cage from content
+  =/  =cage  cage.u.maybe-content
   ::  Must have chat:claude mark
   ?.  =(p.cage %claude-chat)  ~
   ::  Try to extract the chat

@@ -851,7 +851,7 @@
       %-  ~(gas by *(map @t @t))
       :~  ['mtime' (da-oct:tarball now.bowl)]
       ==
-    =/  new-ball=ball:tarball  (put:ba /processes/commits (crip "{(trip pid)}.json") [meta %& [%json !>(updated-jon)]])
+    =/  new-ball=ball:tarball  (put:ba /processes/commits (crip "{(trip pid)}.json") [meta [%json !>(updated-jon)]])
     =.  ball-0  new-ball
     ::  Get updated log count
     =/  new-logs=(list json)  (~(dog jo:json-utils updated-jon) /logs (ar:dejs:format same:dejs:format))

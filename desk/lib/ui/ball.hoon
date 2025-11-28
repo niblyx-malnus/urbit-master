@@ -46,14 +46,12 @@
     =/  content-data=(unit content:tarball)  (~(get ba:tarball ball) parent filename)
     ?~  content-data
       [/text/plain (as-octs:mimes:html 'file not found')]
-    =/  dat  data.u.content-data
-    ?-  -.dat
-      %|  [/text/plain (as-octs:mimes:html 'symlink')]
-      %&
-        ?:  =(%mime p.p.dat)
-          !<(mime q.p.dat)
-        (~(cage-to-mime gen:tarball [bowl conversions]) p.dat)
-    ==
+    =/  cag=cage  cage.u.content-data
+    ?:  =(%road p.cag)
+      [/text/plain (as-octs:mimes:html 'symlink')]
+    ?:  =(%mime p.cag)
+      !<(mime q.cag)
+    (~(cage-to-mime gen:tarball [bowl conversions]) cag)
   ::  No ext - try as directory first, fallback to file
   =/  dir-exists=(unit ball:tarball)  (~(dap ba:tarball ball) ball-path)
   ?^  dir-exists
@@ -68,14 +66,12 @@
   =/  content-data=(unit content:tarball)  (~(get ba:tarball ball) parent filename)
   ?~  content-data
     [/text/plain (as-octs:mimes:html 'file not found')]
-  =/  dat  data.u.content-data
-  ?-  -.dat
-    %|  [/text/plain (as-octs:mimes:html 'symlink')]
-    %&
-      ?:  =(%mime p.p.dat)
-        !<(mime q.p.dat)
-      (~(cage-to-mime gen:tarball [bowl conversions]) p.dat)
-  ==
+  =/  cag=cage  cage.u.content-data
+  ?:  =(%road p.cag)
+    [/text/plain (as-octs:mimes:html 'symlink')]
+  ?:  =(%mime p.cag)
+    !<(mime q.cag)
+  (~(cage-to-mime gen:tarball [bowl conversions]) cag)
 ::  Render ball file browser UI
 ::
 ++  ball-browser
@@ -248,11 +244,11 @@
           =/  path-prefix=tape
             ?~  pax  ""
             (trip (spat pax))
-          =/  dat  data.content-data
-          ?-  -.dat
-              %|
-            =/  target-display=tape  (trip (encode-road:tarball p.dat))
-            =/  resolved-path=path  (resolve-road:tarball p.dat pax)
+          =/  cag=cage  cage.content-data
+          ?:  =(%road p.cag)
+            =/  road  !<(road:tarball q.cag)
+            =/  target-display=tape  (trip (encode-road:tarball road))
+            =/  resolved-path=path  (resolve-road:tarball road pax)
             =/  target-url=tape  "/master/ball{(trip (spat resolved-path))}"
             ;tr
               ;td
@@ -272,34 +268,32 @@
                 ==
               ==
             ==
-              %&
-            ::  Convert cage to mime for display (or extract directly if %mime cage)
-            =/  =mime
-              ?:  =(%mime p.p.dat)
-                !<(mime q.p.dat)
-              (~(cage-to-mime gen:tarball [bowl conversions]) p.dat)
-            =/  size=@ud  p.q.mime
-            =/  mime-raw=tape  (trip (spat p.mime))
-            =/  mime-display=tape  ?~(mime-raw "" (tail mime-raw))
-            =/  file-url=tape  "/master/ball{path-prefix}/{(trip filename)}"
-            ;tr
-              ;td
-                ;a/"{file-url}"
-                  ; {(trip filename)}
-                ==
+          ::  Convert cage to mime for display (or extract directly if %mime cage)
+          =/  =mime
+            ?:  =(%mime p.cag)
+              !<(mime q.cag)
+            (~(cage-to-mime gen:tarball [bowl conversions]) cag)
+          =/  size=@ud  p.q.mime
+          =/  mime-raw=tape  (trip (spat p.mime))
+          =/  mime-display=tape  ?~(mime-raw "" (tail mime-raw))
+          =/  file-url=tape  "/master/ball{path-prefix}/{(trip filename)}"
+          ;tr
+            ;td
+              ;a/"{file-url}"
+                ; {(trip filename)}
               ==
-              ;td: {mime-display}
-              ;td: {(scow %ud size)} bytes
-              ;td: {modified-display}
-              ;td
-                ;a/"{file-url}"(download "")
-                  ;button(type "button"): Download
-                ==
-                ;form(method "POST", action upload-path, style "display: inline; margin-left: 5px;")
-                  ;input(type "hidden", name "action", value "delete-file");
-                  ;input(type "hidden", name "filename", value (trip filename));
-                  ;button(type "submit", onclick "return confirm('Delete {(trip filename)}?')"): Delete
-                ==
+            ==
+            ;td: {mime-display}
+            ;td: {(scow %ud size)} bytes
+            ;td: {modified-display}
+            ;td
+              ;a/"{file-url}"(download "")
+                ;button(type "button"): Download
+              ==
+              ;form(method "POST", action upload-path, style "display: inline; margin-left: 5px;")
+                ;input(type "hidden", name "action", value "delete-file");
+                ;input(type "hidden", name "filename", value (trip filename));
+                ;button(type "submit", onclick "return confirm('Delete {(trip filename)}?')"): Delete
               ==
             ==
           ==

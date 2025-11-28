@@ -480,15 +480,15 @@
   ?~  content-data
     ~&  >>>  "File not found: {<ball-path>}/{<filename>}"
     (pure:m ~)
-  =/  dat  data.u.content-data
-  ?:  ?=(%| -.dat)
+  =/  cag=cage  cage.u.content-data
+  ?:  =(%road p.cag)
     ~&  >>>  "Cannot upload symlink: {<ball-path>}/{<filename>}"
     (pure:m ~)
   ::  Convert cage to mime
   =/  =mime
-    ?:  =(%mime p.p.dat)
-      !<(mime q.p.dat)
-    (~(cage-to-mime gen:tarball [bowl conversions]) p.dat)
+    ?:  =(%mime p.cag)
+      !<(mime q.cag)
+    (~(cage-to-mime gen:tarball [bowl conversions]) cag)
   =/  text=@t  ;;(@t q.q.mime)
   ::  Upload to S3
   ;<  now=@da  bind:m  get-time:io
@@ -558,15 +558,15 @@
   ?~  content-data
     ~&  >  "Skipping missing file: {<file-path>}/{<filename>}"
     $(files-to-upload t.files-to-upload)
-  =/  dat  data.u.content-data
-  ?:  ?=(%| -.dat)
+  =/  cag=cage  cage.u.content-data
+  ?:  =(%road p.cag)
     ~&  >  "Skipping symlink: {<file-path>}/{<filename>}"
     $(files-to-upload t.files-to-upload)
   ::  Convert cage to mime
   =/  =mime
-    ?:  =(%mime p.p.dat)
-      !<(mime q.p.dat)
-    (~(cage-to-mime gen:tarball [bowl conversions]) p.dat)
+    ?:  =(%mime p.cag)
+      !<(mime q.cag)
+    (~(cage-to-mime gen:tarball [bowl conversions]) cag)
   =/  text=@t  ;;(@t q.q.mime)
   ::  Upload to S3
   ;<  now=@da  bind:m  get-time:io

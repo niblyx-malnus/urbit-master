@@ -748,9 +748,7 @@
     |-  ^-  (set mark)
     ?~  entries  marks
     =*  content  q.i.entries
-    ?.  ?=(%.y -.data.content)
-      $(entries t.entries)
-    $(entries t.entries, marks (~(put in marks) p.p.data.content))
+    $(entries t.entries, marks (~(put in marks) p.cage.content))
   ::  Recurse into subdirectories
   =/  subdirs=(list (pair @ta ball:tarball))  ~(tap by dir.ball)
   |-  ^-  (set mark)
@@ -910,7 +908,7 @@
     %-  ~(gas by *(map @t @t))
     :~  ['mtime' (da-oct:tarball now)]
     ==
-  =/  content=content:tarball  [meta %& c]
+  =/  content=content:tarball  [meta c]
   (replace (put:ba pax name content))
 ::  +mkd: make a directory in ball with timestamp
 ::
@@ -940,7 +938,7 @@
     :~  ['mtime' (da-oct:tarball now)]
         ['size' (scot %ud p.q.mime)]
     ==
-  =/  content=content:tarball  [meta %& [%mime !>(mime)]]
+  =/  content=content:tarball  [meta [%mime !>(mime)]]
   (replace (~(put ba:tarball b) pax name content))
 ::  +put-road: put a symlink into ball with timestamp
 ::
@@ -955,7 +953,7 @@
     %-  ~(gas by *(map @t @t))
     :~  ['mtime' (da-oct:tarball now)]
     ==
-  =/  content=content:tarball  [meta %| road]
+  =/  content=content:tarball  [meta (road-to-cage:tarball road)]
   (replace (~(put ba:tarball b) pax name content))
 ::  +del: delete a file or symlink from ball
 ::
@@ -995,12 +993,10 @@
   =/  current=(unit content:tarball)  (get:ba pax name)
   ?~  current
     (fiber-fail leaf+"file not found: {<pax>}/{<name>}" ~)
-  ?.  ?=(%.y -.data.u.current)
-    (fiber-fail leaf+"file is not a cage: {<pax>}/{<name>}" ~)
   ::  Build dais for the mark (try our desk, then %base)
-  ;<  dais=(unit dais:clay)  bind:m  (try-build-dais p.p.data.u.current)
+  ;<  dais=(unit dais:clay)  bind:m  (try-build-dais p.cage.u.current)
   ?~  dais
-    (fiber-fail leaf+"mark {<p.p.data.u.current>} not found" ~)
+    (fiber-fail leaf+"mark {<p.cage.u.current>} not found" ~)
   ::  Apply patch using tarball
   (replace (patch-cage:ba pax name diff u.dais))
 --

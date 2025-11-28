@@ -2,11 +2,12 @@
 ::
 /+  multipart
 |%
++$  neck   @tas                :: a "mark" at the directory level
 +$  metadata  (map @t @t)
 +$  bend  (pair @ud path)      :: relative path
 +$  road  (each path bend)     :: absolute or relative path
-+$  content  [=metadata data=(each cage road)]
-+$  lump  [=metadata contents=(map @ta content)]
++$  content  [=metadata =cage]
++$  lump  [=metadata neck=(unit neck) contents=(map @ta content)]
 +$  ball  (axal lump)
 ::  Tarball archive types
 ::
@@ -42,6 +43,19 @@
   ==
 +$  tarball-entry  [header=tarball-header data=(unit octs)]
 +$  tarball        (list tarball-entry)
+::  Helper: wrap road as cage instead of using %| branch
+::
+++  road-to-cage
+  |=  =road
+  ^-  cage
+  [%road !>(road)]
+::
+++  cage-to-road
+  |=  =cage
+  ^-  (unit road)
+  ?.  =(%road p.cage)
+    ~
+  `!<(road q.cage)
 ::
 ++  ext-to-mime
   |=  ext=@ta
@@ -291,8 +305,8 @@
   =/  maybe-cage=(unit cage)  (mime-to-cage conversions file-name file-mime)
   =/  file-content=content
     ?~  maybe-cage
-      [file-metadata %& [%mime !>(file-mime)]]
-    [file-metadata %& u.maybe-cage]
+      [file-metadata [%mime !>(file-mime)]]
+    [file-metadata u.maybe-cage]
   ::  Add file to base with explicit directories
   =/  ba  (~(das ba base-with-dirs) dais-map)
   =/  new-base=ball
@@ -324,25 +338,17 @@
     |=  [pax=path name=@ta c=content]
     ^-  ball
     ::  Reject empty mime files
-    ?:  ?&  ?=([%& *] data.c)
-            =(%mime p.p.data.c)
-            =(0 p.q:!<(mime q.p.data.c))
+    ?:  ?&  =(%mime p.cage.c)
+            =(0 p.q:!<(mime q.cage.c))
         ==
       ~|("empty file {(spud (weld pax /[name]))}" !!)
-    ::  Non-cage content: put directly
-    ?.  ?=([%& *] data.c)
-      =/  lmp=lump
-        ?~  nod=(~(get of b) pax)
-          [~ ~]
-        u.nod
-      (~(put of b) pax lmp(contents (~(put by contents.lmp) name c)))
-    ::  Cage content: validate first
-    =/  validated-cage=cage  (validate-cage pax name p.data.c)
+    ::  Validate cage
+    =/  validated-cage=cage  (validate-cage pax name cage.c)
     =/  lmp=lump
       ?~  nod=(~(get of b) pax)
-        [~ ~]
+        [~ ~ ~]
       u.nod
-    (~(put of b) pax lmp(contents (~(put by contents.lmp) name c(p.data validated-cage))))
+    (~(put of b) pax lmp(contents (~(put by contents.lmp) name c(cage validated-cage))))
   ::  Validate a cage using mark system
   ::
   ++  validate-cage
@@ -352,11 +358,10 @@
     =/  old-content=(unit content)  (get pax name)
     ::  Same-mark update with nesting types: canonicalize without dais
     ?:  ?&  ?=(^ old-content)
-            ?=([%& *] data.u.old-content)
-            =(p.p.data.u.old-content p.new-cage)
-            (~(nest ut p.q.p.data.u.old-content) | p.q.new-cage)
+            =(p.cage.u.old-content p.new-cage)
+            (~(nest ut p.q.cage.u.old-content) | p.q.new-cage)
         ==
-      =/  old-cage=cage  p.data.u.old-content
+      =/  old-cage=cage  cage.u.old-content
       [p.new-cage [p.q.old-cage q.q.new-cage]]
     ::  All other cases: REQUIRE dais
     =/  dais-result=(unit dais:clay)
@@ -406,35 +411,32 @@
   ++  gut
     |=  [pax=path name=@ta default=content]
     (fall (get pax name) default)
-  ::  Get a cage (crash if not found or not a cage)
+  ::  Get a cage (crash if not found)
   ::
   ++  got-cage
     |=  [pax=path name=@ta]
     ^-  cage
     =/  c=content  (got pax name)
-    ?:  ?=([%& *] data.c)
-      p.data.c
-    ~|("not a cage: {(spud (snoc pax name))}" !!)
+    cage.c
   ::  Get a file as mime (crash if not found or not a mime cage)
   ::
   ++  got-file
     |=  [pax=path name=@ta]
     ^-  mime
     =/  c=content  (got pax name)
-    ?.  ?=([%& *] data.c)
-      ~|("not a file: {(spud (snoc pax name))}" !!)
-    ?.  =(%mime p.p.data.c)
+    ?.  =(%mime p.cage.c)
       ~|("not a mime file: {(spud (snoc pax name))}" !!)
-    !<(mime q.p.data.c)
+    !<(mime q.cage.c)
   ::  Get a symlink (crash if not found or not a symlink)
   ::
   ++  got-symlink
     |=  [pax=path name=@ta]
     ^-  road
     =/  c=content  (got pax name)
-    ?:  ?=([%| *] data.c)
-      p.data.c
-    ~|("not a symlink: {(spud (snoc pax name))}" !!)
+    =/  maybe-road=(unit road)  (cage-to-road cage.c)
+    ?~  maybe-road
+      ~|("not a symlink: {(spud (snoc pax name))}" !!)
+    u.maybe-road
   ::  Get cage and extract as specific type (crash if wrong type)
   ::
   ++  got-cage-as
@@ -448,9 +450,7 @@
     ^-  (unit a)
     ?~  may=(get pax name)
       ~
-    ?.  ?=([%& *] data.u.may)
-      ~
-    `!<(a q:p.data.u.may)
+    `!<(a q.cage.u.may)
   ::  Count total content items across all directories
   ::
   ++  wyt
@@ -517,7 +517,7 @@
   ++  mkd
     |=  [pax=path met=metadata]
     ^-  ball
-    (~(put of b) pax [met ~])
+    (~(put of b) pax [met ~ ~])
   ::  Descend to subdirectory as new ball
   ::
   ++  dip
@@ -543,11 +543,9 @@
     =/  current=(unit content)  (get pax name)
     ?~  current
       ~|  [%file-not-found pax name]  !!
-    ?.  ?=(%.y -.data.u.current)
-      ~|  [%not-a-cage pax name]  !!
-    =/  new-vase  (~(pact dais q.p.data.u.current) diff)
+    =/  new-vase  (~(pact dais q.cage.u.current) diff)
     ::  Preserve metadata, update vase
-    (put pax name [metadata.u.current %& [p.p.data.u.current new-vase]])
+    (put pax name [metadata.u.current [p.cage.u.current new-vase]])
   --
 ::  Tarball encoding utilities
 ::
@@ -765,29 +763,27 @@
     |=  [=path =content]
     ^-  tarball-entry
     =/  [prefix=^path name=^path]  (split-path path)
-    =/  dat  data.content
-    ?-    -.dat
-        %|
+    ::  Check if this is a road cage (symlink)
+    =/  maybe-road=(unit road)  (cage-to-road cage.content)
+    ?^  maybe-road
+      ::  It's a symlink
       =/  sym-metadata=metadata
         %-  ~(gas by metadata.content)
         :~  ['typeflag' '2']
             ['prefix' (rsh [3 1] (spat prefix))]
             ['name' (rsh [3 1] (spat name))]
-            ['linkname' (encode-road p.dat)]
+            ['linkname' (encode-road u.maybe-road)]
         ==
       (generate-entry sym-metadata ~)
-      ::
-        %&
-      ::  Convert cage to mime, falling back to noun jamming
-      =/  =mime  (cage-to-mime p.dat)
-      =/  cage-metadata=metadata
-        %-  ~(gas by metadata.content)
-        :~  ['typeflag' '0']
-            ['prefix' (rsh [3 1] (spat prefix))]
-            ['name' (rsh [3 1] (spat name))]
-        ==
-      (generate-entry cage-metadata `q.mime)
-    ==
+    ::  It's a regular file
+    =/  =mime  (cage-to-mime cage.content)
+    =/  cage-metadata=metadata
+      %-  ~(gas by metadata.content)
+      :~  ['typeflag' '0']
+          ['prefix' (rsh [3 1] (spat prefix))]
+          ['name' (rsh [3 1] (spat name))]
+      ==
+    (generate-entry cage-metadata `q.mime)
   ::
   ++  make-tarball
     |=  [=path =ball]
